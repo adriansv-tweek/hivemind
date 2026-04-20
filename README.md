@@ -6,7 +6,7 @@ A personal knowledge tool that turns raw text into structured, searchable notes.
 - Save notes from raw text
 - Generate summary + tags
 - Store tags in database
-- Search by content, summary, and tags
+- Search by content, summary, and tags with semantic ranking
 - Simple web UI for add/search/list notes
 
 ## Tech Stack
@@ -29,3 +29,12 @@ PowerShell:
 ```bash
 $env:OPENAI_API_KEY="your_key_here"
 ```
+
+## Reindex old notes after updates
+
+If you improved summary/tag logic and want old notes to use it too:
+
+- Open `http://127.0.0.1:8000/docs`
+- Run `POST /admin/reindex`
+
+This recomputes summary, tags, and embeddings for all saved notes.
