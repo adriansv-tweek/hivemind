@@ -51,14 +51,9 @@ function renderNotes(notes) {
   for (const note of notes) {
     const noteCard = document.createElement("article");
     noteCard.className = "note";
-    const relevanceText =
-      typeof note.relevance_score === "number"
-        ? `<p><strong>Match score:</strong> ${(note.relevance_score * 100).toFixed(1)}%</p>`
-        : "";
     noteCard.innerHTML = `
       <p><strong>Summary:</strong> ${note.summary || "No summary yet"}</p>
       <p class="tags"><strong>Tags:</strong> ${formatTags(note.tags)}</p>
-      ${relevanceText}
       <details>
         <summary>Read full note</summary>
         <p>${note.content}</p>
@@ -126,7 +121,7 @@ async function searchNotes() {
     }
     const notes = await response.json();
     renderNotes(notes);
-    setStatus(`Found ${notes.length} notes ranked by semantic relevance.`);
+    setStatus(`Found ${notes.length} notes.`);
   } catch (error) {
     setStatus(getErrorMessage(error, "Search failed"), true);
   }

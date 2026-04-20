@@ -26,7 +26,6 @@ class NoteResponse(BaseModel):
 
 class NoteCreateResponse(NoteResponse):
     tags: list[str]
-    relevance_score: float | None = None
 
 
 class ReindexResponse(BaseModel):
@@ -121,7 +120,6 @@ def _to_note_response(note: Note) -> NoteCreateResponse:
         summary=note.summary,
         created_at=note.created_at,
         tags=[tag.name for tag in note.tags],
-        relevance_score=None,
     )
 
 
@@ -303,8 +301,6 @@ def search_notes(q: str = Query(min_length=1), db: Session = Depends(get_db)) ->
     ranked_results.sort(key=lambda item: item[0], reverse=True)
 
     response: list[NoteCreateResponse] = []
-    for score, note in ranked_results[:20]:
-        note_response = _to_note_response(note)
-        note_response.relevance_score = round(score, 4)
-        response.append(note_response)
+    for _score, note in ranked_results[:20]:
+        response.append(_to_note_response(note))
     return response
