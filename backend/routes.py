@@ -29,6 +29,11 @@ class NoteCreateResponse(NoteResponse):
     relevance_score: float | None = None
 
 
+class ReindexResponse(BaseModel):
+    total_notes: int
+    updated_notes: int
+
+
 SEARCH_STOP_WORDS = {
     "a",
     "an",
@@ -176,6 +181,39 @@ def _read_note_embedding(note: Note) -> list[float]:
     return create_embedding(embedding_text)
 
 
+def _assign_tags_to_note(note: Note, tag_names: list[str], db: Session) -> None:
+    """
+    Replace note tags with current normalized set.
+    This lets us reindex old notes cleanly.
+    """
+    note.tags.clear()
+    for tag_name in tag_names:
+        existing_tag = db.query(Tag).filter(Tag.name == tag_name).first()
+        if existing_tag:
+            note.tags.append(existing_tag)
+            continue
+        note.tags.append(Tag(name=tag_name))
+
+
+def _refresh_note_ai_data(note: Note, db: Session) -> None:
+    """
+    Recompute summary, tags, and embedding for a note based on current logic.
+    """
+    ai_result = extract_summary_and_tags(note.content)
+    ai_summary = str(ai_result.get("summary", "")).strip() or None
+    ai_tags = ai_result.get("tags", [])
+    if not isinstance(ai_tags, list):
+        ai_tags = []
+    clean_tags = _normalize_tags(ai_tags)
+
+    note.summary = ai_summary
+    _assign_tags_to_note(note, clean_tags, db)
+
+    embedding_text = _build_note_embedding_text(note.content, ai_summary, clean_tags)
+    new_embedding = NoteEmbedding(vector_json=json.dumps(create_embedding(embedding_text)))
+    note.embedding = new_embedding
+
+
 def get_db() -> Session:
     # Yield one DB session per request, then close it safely.
     db = SessionLocal()
@@ -197,27 +235,8 @@ def create_note(payload: NoteCreate, db: Session = Depends(get_db)) -> NoteCreat
     if not cleaned_content:
         raise HTTPException(status_code=400, detail="content cannot be empty")
 
-    # Step 2: enrich the note with AI-generated summary and tags.
-    ai_result = extract_summary_and_tags(cleaned_content)
-    ai_summary = str(ai_result.get("summary", "")).strip() or None
-    ai_tags = ai_result.get("tags", [])
-    if not isinstance(ai_tags, list):
-        ai_tags = []
-    clean_tags = _normalize_tags(ai_tags)
-
-    note = Note(content=cleaned_content, summary=ai_summary)
-
-    # Reuse existing tags if they exist, otherwise create new ones.
-    for tag_name in clean_tags:
-        existing_tag = db.query(Tag).filter(Tag.name == tag_name).first()
-        if existing_tag:
-            note.tags.append(existing_tag)
-            continue
-        note.tags.append(Tag(name=tag_name))
-
-    # Save semantic embedding so future search can find this note by meaning.
-    embedding_text = _build_note_embedding_text(cleaned_content, ai_summary, clean_tags)
-    note.embedding = NoteEmbedding(vector_json=json.dumps(create_embedding(embedding_text)))
+    note = Note(content=cleaned_content)
+    _refresh_note_ai_data(note, db)
 
     db.add(note)
     db.commit()
@@ -230,6 +249,22 @@ def create_note(payload: NoteCreate, db: Session = Depends(get_db)) -> NoteCreat
     if not saved_note:
         raise HTTPException(status_code=500, detail="failed to load saved note")
     return _to_note_response(saved_note)
+
+
+@router.post("/admin/reindex", response_model=ReindexResponse)
+def reindex_notes(db: Session = Depends(get_db)) -> ReindexResponse:
+    """
+    Reprocess all existing notes with current summary/tag/embedding logic.
+    Useful after quality improvements so older notes catch up.
+    """
+    notes = db.query(Note).options(joinedload(Note.tags), joinedload(Note.embedding)).all()
+    updated_count = 0
+    for note in notes:
+        _refresh_note_ai_data(note, db)
+        updated_count += 1
+
+    db.commit()
+    return ReindexResponse(total_notes=len(notes), updated_notes=updated_count)
 
 
 @router.get("/notes", response_model=list[NoteCreateResponse])
