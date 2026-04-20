@@ -30,14 +30,12 @@ function renderNotes(notes) {
   for (const note of notes) {
     const noteCard = document.createElement("article");
     noteCard.className = "note";
-    const preview = note.content.length > 220 ? `${note.content.slice(0, 220)}...` : note.content;
     const relevanceText =
       typeof note.relevance_score === "number"
         ? `<p><strong>Match score:</strong> ${(note.relevance_score * 100).toFixed(1)}%</p>`
         : "";
     noteCard.innerHTML = `
       <p><strong>Summary:</strong> ${note.summary || "No summary yet"}</p>
-      <p><strong>Preview:</strong> ${preview}</p>
       <p class="tags"><strong>Tags:</strong> ${formatTags(note.tags)}</p>
       ${relevanceText}
       <details>
@@ -59,7 +57,7 @@ async function loadAllNotes() {
     }
     const notes = await response.json();
     renderNotes(notes);
-    setStatus(`Loaded ${notes.length} notes. Showing compact previews.`);
+    setStatus(`Loaded ${notes.length} notes.`);
   } catch (error) {
     setStatus(error.message, true);
   }

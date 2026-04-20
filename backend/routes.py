@@ -148,6 +148,19 @@ def _keyword_match_score(note: Note, search_terms: list[str]) -> float:
     return matches / max(1, len(search_terms))
 
 
+def _combined_relevance_score(semantic_score: float, keyword_score: float) -> float:
+    """
+    Hybrid ranking with stronger keyword boost for exact/simple queries.
+    This avoids scary low scores for obviously relevant matches.
+    """
+    combined = (0.6 * semantic_score) + (0.4 * keyword_score)
+    if keyword_score >= 0.99:
+        return max(combined, 0.82)
+    if keyword_score >= 0.6:
+        return max(combined, 0.68)
+    return combined
+
+
 def _read_note_embedding(note: Note) -> list[float]:
     # Old notes might not have embedding yet, so compute on the fly.
     if note.embedding and note.embedding.vector_json:
@@ -255,7 +268,7 @@ def search_notes(q: str = Query(min_length=1), db: Session = Depends(get_db)) ->
         keyword_score = _keyword_match_score(note, search_terms)
 
         # Hybrid score keeps literal matches useful while adding semantic recall.
-        combined_score = (0.75 * semantic_score) + (0.25 * keyword_score)
+        combined_score = _combined_relevance_score(semantic_score, keyword_score)
         if combined_score < 0.12 and keyword_score == 0:
             continue
         ranked_results.append((combined_score, note))

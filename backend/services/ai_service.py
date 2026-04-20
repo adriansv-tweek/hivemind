@@ -7,6 +7,19 @@ from hashlib import md5
 
 from openai import OpenAI
 
+COMMON_STOP_WORDS = {
+    # English
+    "the", "and", "for", "with", "that", "this", "from", "have", "you", "are", "was", "but",
+    "not", "your", "about", "also", "called", "into", "their", "they", "them", "than", "such",
+    "many", "very", "more", "most", "can", "has", "had", "its", "it's", "between", "while",
+    "including", "some", "used", "using", "often", "only", "other", "these", "those",
+    # Norwegian
+    "og", "det", "som", "den", "de", "til", "med", "av", "er", "en", "et", "på", "om", "fra",
+    "har", "blir", "ble", "kan", "ikke", "også", "eller", "dette", "disse", "sine", "sitt",
+    "sin", "der", "hvor", "hvordan", "hva", "hvem", "når", "ordet", "navnet", "brukt", "mange",
+    "ofte", "bare", "under", "over", "innen", "mot", "hos", "seg", "sammen", "finnes",
+}
+
 
 def _normalize_word(word: str) -> str:
     """
@@ -31,57 +44,49 @@ def _fallback_summary_and_tags(text: str) -> dict[str, object]:
     cleaned = " ".join(text.split())
     words = re.findall(r"[A-Za-z0-9]+", cleaned.lower())
 
-    # Make a short summary by clipping the text.
-    summary = cleaned[:180].strip()
-    if len(cleaned) > 180:
-        summary += "..."
-
-    # Pick up to 5 meaningful keywords based on frequency.
-    # This is much better than using the first words in the text.
-    skip_words = {
-        "the",
-        "and",
-        "for",
-        "with",
-        "that",
-        "this",
-        "from",
-        "have",
-        "you",
-        "are",
-        "was",
-        "but",
-        "not",
-        "your",
-        "about",
-        "also",
-        "called",
-        "into",
-        "their",
-        "they",
-        "them",
-        "than",
-        "such",
-        "many",
-        "very",
-        "more",
-        "most",
-        "can",
-        "has",
-        "had",
-        "its",
-        "it's",
-        "between",
-        "while",
-        "including",
-    }
+    # Build a keyword profile from the full text first.
     keyword_counter: Counter[str] = Counter()
     for word in words:
         normalized = _normalize_word(word)
-        if len(normalized) < 4 or normalized in skip_words:
+        if len(normalized) < 4 or normalized in COMMON_STOP_WORDS:
             continue
         keyword_counter[normalized] += 1
 
+    # Generate a better fallback summary by selecting high-signal sentences.
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", cleaned) if s.strip()]
+    if not sentences:
+        summary = cleaned[:220].strip()
+        if len(cleaned) > 220:
+            summary += "..."
+    else:
+        scored_sentences: list[tuple[float, int, str]] = []
+        for index, sentence in enumerate(sentences):
+            sentence_words = re.findall(r"[A-Za-z0-9]+", sentence.lower())
+            if not sentence_words:
+                continue
+            score = 0.0
+            meaningful = 0
+            for sentence_word in sentence_words:
+                normalized = _normalize_word(sentence_word)
+                if len(normalized) < 4 or normalized in COMMON_STOP_WORDS:
+                    continue
+                score += keyword_counter.get(normalized, 0)
+                meaningful += 1
+            if meaningful > 0:
+                score = score / meaningful
+            scored_sentences.append((score, index, sentence))
+
+        if not scored_sentences:
+            summary = sentences[0]
+        else:
+            # Pick top 2 strongest sentences and keep natural reading order.
+            top_sentences = sorted(scored_sentences, key=lambda item: item[0], reverse=True)[:2]
+            top_sentences_sorted = sorted(top_sentences, key=lambda item: item[1])
+            summary = " ".join(sentence for _score, _index, sentence in top_sentences_sorted)
+            if len(summary) > 320:
+                summary = f"{summary[:317].rstrip()}..."
+
+    # Pick tags from frequency profile, preferring concrete keywords.
     top_tags = [tag for tag, _count in keyword_counter.most_common(5)]
     return {"summary": summary or "No summary available.", "tags": top_tags}
 
@@ -166,9 +171,9 @@ def extract_summary_and_tags(text: str) -> dict[str, object]:
         model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
         prompt = (
-            "Summarize this text in 1-2 sentences. "
+            "Summarize this text in 1-2 concise sentences. "
             "Also provide 3-5 relevant tags that are useful for later search. "
-            "Use broad concepts or topics, not random first words.\n"
+            "Use broad concepts or topics, not random first words or filler words.\n"
             'Return ONLY valid JSON in this exact shape: {"summary": "...", "tags": ["...", "..."]}.\n\n'
             f"Text:\n{text}"
         )
