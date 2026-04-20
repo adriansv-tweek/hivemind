@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from .database import SessionLocal
 from .models import Note
+from .services.ai_service import extract_summary_and_tags
 
 router = APIRouter()
 
@@ -19,6 +20,10 @@ class NoteResponse(BaseModel):
     content: str
     summary: str | None
     created_at: datetime
+
+
+class NoteCreateResponse(NoteResponse):
+    tags: list[str]
 
 
 def get_db() -> Session:
@@ -35,18 +40,33 @@ def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.post("/note", response_model=NoteResponse)
-def create_note(payload: NoteCreate, db: Session = Depends(get_db)) -> Note:
+@router.post("/note", response_model=NoteCreateResponse)
+def create_note(payload: NoteCreate, db: Session = Depends(get_db)) -> NoteCreateResponse:
     # Keep validation simple in MVP: text must contain visible characters.
     cleaned_content = payload.content.strip()
     if not cleaned_content:
         raise HTTPException(status_code=400, detail="content cannot be empty")
 
+    # Step 2: enrich the note with AI-generated summary and tags.
+    ai_result = extract_summary_and_tags(cleaned_content)
+    ai_summary = str(ai_result.get("summary", "")).strip() or None
+    ai_tags = ai_result.get("tags", [])
+    if not isinstance(ai_tags, list):
+        ai_tags = []
+
     note = Note(content=cleaned_content)
     db.add(note)
     db.commit()
     db.refresh(note)
-    return note
+
+    # We return AI metadata in POST response, but keep DB schema simple for now.
+    return NoteCreateResponse(
+        id=note.id,
+        content=note.content,
+        summary=ai_summary,
+        created_at=note.created_at,
+        tags=[str(tag).strip() for tag in ai_tags if str(tag).strip()],
+    )
 
 
 @router.get("/notes", response_model=list[NoteResponse])
