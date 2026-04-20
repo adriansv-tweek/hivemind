@@ -4,10 +4,14 @@ import os
 from pathlib import Path
 
 from openai import OpenAI
-from pypdf import PdfReader
 
 
 def _extract_text_from_pdf(file_bytes: bytes) -> str:
+    try:
+        from pypdf import PdfReader
+    except ImportError as error:
+        raise ValueError("PDF support is not installed. Run pip install -r requirements.txt.") from error
+
     reader = PdfReader(io.BytesIO(file_bytes))
     parts: list[str] = []
     for page in reader.pages:

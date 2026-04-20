@@ -65,4 +65,4 @@ This recomputes summary, tags, and embeddings for all saved notes.
 
 - PDF files are read as text and saved as notes.
 - Screenshot/image ingest uses OpenAI to extract text from the image first.
-- In frontend, you can either choose a PDF/image file or focus the paste box and press `Ctrl+V` after using Snipping Tool.
+- In frontend, use `+ Add file` for PDFs/images, or paste a screenshot directly into the main text box with `Ctrl+V`.
