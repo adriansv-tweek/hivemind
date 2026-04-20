@@ -13,6 +13,7 @@ except ImportError:  # pragma: no cover - optional local OCR fallback.
     RapidOCR = None
 
 _local_ocr_engine = None
+_openai_vision_disabled = False
 
 
 def _extract_text_from_pdf(file_bytes: bytes) -> str:
@@ -29,8 +30,10 @@ def _extract_text_from_pdf(file_bytes: bytes) -> str:
 
 
 def _extract_text_from_image(file_bytes: bytes, mime_type: str) -> str:
+    global _openai_vision_disabled
+
     api_key = os.getenv("OPENAI_API_KEY")
-    if api_key:
+    if api_key and not _openai_vision_disabled:
         client = OpenAI(api_key=api_key)
         try:
             model = os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini")
@@ -58,13 +61,22 @@ def _extract_text_from_image(file_bytes: bytes, mime_type: str) -> str:
                         ],
                     }
                 ],
+                timeout=8.0,
             )
             output_text = getattr(response, "output_text", "")
             if output_text and output_text.strip():
                 return output_text.strip()
-        except Exception:
+        except Exception as error:
             # Image OCR should still work locally if OpenAI vision is unavailable.
-            pass
+            # If quota is gone, avoid waiting on OpenAI for every next screenshot.
+            error_text = str(error).lower()
+            if (
+                "insufficient_quota" in error_text
+                or "rate limit" in error_text
+                or "timed out" in error_text
+                or "timeout" in error_text
+            ):
+                _openai_vision_disabled = True
 
     return _extract_text_from_image_locally(file_bytes)
 

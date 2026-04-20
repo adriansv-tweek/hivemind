@@ -25,6 +25,18 @@ uvicorn backend.main:app --reload
 
 Then open `frontend/index.html` in your browser.
 
+## Quick start on Windows
+
+- Double-click `start_hivemind.bat`
+- This starts backend + opens Hivemind in an app-style browser window (Edge/Chrome)
+- When you close that Hivemind window, backend is stopped automatically
+- Fallback manual stop: run `stop_hivemind.bat`
+- To create desktop shortcuts, run:
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\create_desktop_shortcuts.ps1
+```
+
 Optional (for real AI output instead of fallback):
 
 PowerShell:
