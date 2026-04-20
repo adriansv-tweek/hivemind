@@ -2,9 +2,9 @@ const API_BASE_URL = "http://127.0.0.1:8000";
 
 const noteInput = document.getElementById("noteInput");
 const saveNoteBtn = document.getElementById("saveNoteBtn");
+const pickFileBtn = document.getElementById("pickFileBtn");
 const fileInput = document.getElementById("fileInput");
 const uploadFileBtn = document.getElementById("uploadFileBtn");
-const pasteZone = document.getElementById("pasteZone");
 const uploadStatus = document.getElementById("uploadStatus");
 const searchInput = document.getElementById("searchInput");
 const searchBtn = document.getElementById("searchBtn");
@@ -55,9 +55,11 @@ function setPendingPastedFile(file) {
   pendingPastedFile = file;
   if (!file) {
     setUploadStatus("");
+    uploadFileBtn.style.display = "none";
     return;
   }
-  setUploadStatus(`Ready to upload pasted image: ${file.name}`);
+  uploadFileBtn.style.display = "inline-block";
+  setUploadStatus(`Attached file ready: ${file.name}`);
 }
 
 function renderNotes(notes) {
@@ -222,18 +224,20 @@ async function deleteNote(noteId) {
 
 saveNoteBtn.addEventListener("click", createNote);
 uploadFileBtn.addEventListener("click", uploadSelectedFile);
+pickFileBtn.addEventListener("click", () => fileInput.click());
 searchBtn.addEventListener("click", searchNotes);
 loadAllBtn.addEventListener("click", loadAllNotes);
 fileInput.addEventListener("change", () => {
   const file = fileInput.files[0];
   if (!file) {
-    setUploadStatus("");
+    setPendingPastedFile(null);
     return;
   }
   pendingPastedFile = null;
-  setUploadStatus(`Selected file: ${file.name}`);
+  uploadFileBtn.style.display = "inline-block";
+  setUploadStatus(`Attached file ready: ${file.name}`);
 });
-pasteZone.addEventListener("paste", (event) => {
+noteInput.addEventListener("paste", (event) => {
   const items = event.clipboardData?.items || [];
   for (const item of items) {
     if (!item.type.startsWith("image/")) {
@@ -250,8 +254,8 @@ pasteZone.addEventListener("paste", (event) => {
     event.preventDefault();
     return;
   }
-  setUploadStatus("Clipboard did not contain an image.", true);
 });
-pasteZone.addEventListener("click", () => pasteZone.focus());
+
+uploadFileBtn.style.display = "none";
 
 loadAllNotes();
