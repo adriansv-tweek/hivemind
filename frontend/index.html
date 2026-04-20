@@ -25,6 +25,12 @@
       .delete-note-btn {
         margin-top: 12px;
       }
+      .paste-zone {
+        border: 1px dashed #888;
+        padding: 16px;
+        margin-top: 10px;
+        border-radius: 8px;
+      }
       .note {
         border: 1px solid #ddd;
         padding: 12px;
@@ -54,6 +60,12 @@
         <textarea id="noteInput" placeholder="Paste text, ideas, or article snippets here..."></textarea>
         <br />
         <button id="saveNoteBtn">Save note</button>
+        <div class="paste-zone" id="pasteZone" tabindex="0">
+          Paste a screenshot here with Ctrl+V, or choose a PDF/image file below.
+        </div>
+        <p id="uploadStatus"></p>
+        <input id="fileInput" type="file" accept=".pdf,image/*" />
+        <button id="uploadFileBtn">Upload file or pasted image</button>
       </section>
 
       <section>

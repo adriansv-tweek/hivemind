@@ -4,6 +4,8 @@ A personal knowledge tool that turns raw text into structured, searchable notes.
 
 ## Features right now
 - Save notes from raw text
+- Upload PDF files
+- Paste screenshot images for text extraction
 - Generate summary + tags
 - Store tags in database
 - Search by content, summary, and tags with semantic ranking
@@ -58,3 +60,9 @@ This recomputes summary, tags, and embeddings for all saved notes.
 
 - Backend now reads database path from project root (`hivemind.db`) to avoid accidental duplicate DB files.
 - Frontend requests use a timeout and will show a clear error if backend is down.
+
+## File ingest
+
+- PDF files are read as text and saved as notes.
+- Screenshot/image ingest uses OpenAI to extract text from the image first.
+- In frontend, you can either choose a PDF/image file or focus the paste box and press `Ctrl+V` after using Snipping Tool.
