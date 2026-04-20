@@ -1,11 +1,18 @@
-# Hivemind
+# Hivemind 🧠
 
-Hivemind is a small system that transforms unstructured text into structured, searchable knowledge.
+A Personal Knowledge System that transforms unstructured text into structured, searchable knowledge using AI.
 
-## Current status
+## Features
+- Store notes
+- Automatic summaries
+- Tag generation
+- Search functionality
 
-Project skeleton and initial backend structure are in place.
+## Tech Stack
+- FastAPI
+- SQLite
+- OpenAI API
 
-## Planned data flow
-
-Input text -> Backend -> AI -> Structured data -> Database -> API -> Frontend
+## How to run
+```bash
+uvicorn main:app --reload
