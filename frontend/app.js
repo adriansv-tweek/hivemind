@@ -2,12 +2,17 @@ const API_BASE_URL = "http://127.0.0.1:8000";
 
 const noteInput = document.getElementById("noteInput");
 const saveNoteBtn = document.getElementById("saveNoteBtn");
+const fileInput = document.getElementById("fileInput");
+const uploadFileBtn = document.getElementById("uploadFileBtn");
+const pasteZone = document.getElementById("pasteZone");
+const uploadStatus = document.getElementById("uploadStatus");
 const searchInput = document.getElementById("searchInput");
 const searchBtn = document.getElementById("searchBtn");
 const loadAllBtn = document.getElementById("loadAllBtn");
 const notesList = document.getElementById("notesList");
 const statusText = document.getElementById("statusText");
 const REQUEST_TIMEOUT_MS = 20000;
+let pendingPastedFile = null;
 
 function setStatus(message, isError = false) {
   statusText.textContent = message;
@@ -39,6 +44,20 @@ function getErrorMessage(error, fallbackMessage) {
     return error.message;
   }
   return fallbackMessage;
+}
+
+function setUploadStatus(message, isError = false) {
+  uploadStatus.textContent = message;
+  uploadStatus.style.color = isError ? "#b42318" : "#333";
+}
+
+function setPendingPastedFile(file) {
+  pendingPastedFile = file;
+  if (!file) {
+    setUploadStatus("");
+    return;
+  }
+  setUploadStatus(`Ready to upload pasted image: ${file.name}`);
 }
 
 function renderNotes(notes) {
@@ -115,6 +134,40 @@ async function createNote() {
   }
 }
 
+async function uploadSelectedFile() {
+  const selectedFile = fileInput.files[0] || pendingPastedFile;
+  if (!selectedFile) {
+    setUploadStatus("Choose a PDF/image file or paste a screenshot first.", true);
+    return;
+  }
+
+  setStatus("Uploading file...");
+  setUploadStatus(`Processing ${selectedFile.name}...`);
+  try {
+    const formData = new FormData();
+    formData.append("file", selectedFile, selectedFile.name);
+
+    const response = await fetchWithTimeout(`${API_BASE_URL}/ingest/file`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || "Failed to upload file");
+    }
+
+    fileInput.value = "";
+    setPendingPastedFile(null);
+    setStatus("File saved as note.");
+    setUploadStatus("File processed and saved.");
+    await loadAllNotes();
+  } catch (error) {
+    const message = getErrorMessage(error, "Failed to upload file");
+    setStatus(message, true);
+    setUploadStatus(message, true);
+  }
+}
+
 async function searchNotes() {
   const query = searchInput.value.trim();
   if (!query) {
@@ -168,7 +221,37 @@ async function deleteNote(noteId) {
 }
 
 saveNoteBtn.addEventListener("click", createNote);
+uploadFileBtn.addEventListener("click", uploadSelectedFile);
 searchBtn.addEventListener("click", searchNotes);
 loadAllBtn.addEventListener("click", loadAllNotes);
+fileInput.addEventListener("change", () => {
+  const file = fileInput.files[0];
+  if (!file) {
+    setUploadStatus("");
+    return;
+  }
+  pendingPastedFile = null;
+  setUploadStatus(`Selected file: ${file.name}`);
+});
+pasteZone.addEventListener("paste", (event) => {
+  const items = event.clipboardData?.items || [];
+  for (const item of items) {
+    if (!item.type.startsWith("image/")) {
+      continue;
+    }
+    const file = item.getAsFile();
+    if (!file) {
+      continue;
+    }
+    const extension = file.type.split("/")[1] || "png";
+    const pastedFile = new File([file], `pasted-screenshot.${extension}`, { type: file.type });
+    setPendingPastedFile(pastedFile);
+    fileInput.value = "";
+    event.preventDefault();
+    return;
+  }
+  setUploadStatus("Clipboard did not contain an image.", true);
+});
+pasteZone.addEventListener("click", () => pasteZone.focus());
 
 loadAllNotes();
