@@ -1,11 +1,12 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy import or_
+from sqlalchemy.orm import Session, joinedload
 
 from .database import SessionLocal
-from .models import Note
+from .models import Note, Tag
 from .services.ai_service import extract_summary_and_tags
 
 router = APIRouter()
@@ -24,6 +25,30 @@ class NoteResponse(BaseModel):
 
 class NoteCreateResponse(NoteResponse):
     tags: list[str]
+
+
+def _normalize_tags(raw_tags: list[object]) -> list[str]:
+    # Normalize tags so duplicates like "AI" and "ai" collapse.
+    normalized = []
+    seen = set()
+    for tag in raw_tags:
+        name = str(tag).strip().lower()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        normalized.append(name)
+    return normalized[:5]
+
+
+def _to_note_response(note: Note) -> NoteCreateResponse:
+    # Convert SQLAlchemy object to API shape used by frontend.
+    return NoteCreateResponse(
+        id=note.id,
+        content=note.content,
+        summary=note.summary,
+        created_at=note.created_at,
+        tags=[tag.name for tag in note.tags],
+    )
 
 
 def get_db() -> Session:
@@ -53,23 +78,55 @@ def create_note(payload: NoteCreate, db: Session = Depends(get_db)) -> NoteCreat
     ai_tags = ai_result.get("tags", [])
     if not isinstance(ai_tags, list):
         ai_tags = []
+    clean_tags = _normalize_tags(ai_tags)
 
-    note = Note(content=cleaned_content)
+    note = Note(content=cleaned_content, summary=ai_summary)
+
+    # Reuse existing tags if they exist, otherwise create new ones.
+    for tag_name in clean_tags:
+        existing_tag = db.query(Tag).filter(Tag.name == tag_name).first()
+        if existing_tag:
+            note.tags.append(existing_tag)
+            continue
+        note.tags.append(Tag(name=tag_name))
+
     db.add(note)
     db.commit()
-    db.refresh(note)
-
-    # We return AI metadata in POST response, but keep DB schema simple for now.
-    return NoteCreateResponse(
-        id=note.id,
-        content=note.content,
-        summary=ai_summary,
-        created_at=note.created_at,
-        tags=[str(tag).strip() for tag in ai_tags if str(tag).strip()],
+    saved_note = (
+        db.query(Note).options(joinedload(Note.tags)).filter(Note.id == note.id).first()
     )
+    if not saved_note:
+        raise HTTPException(status_code=500, detail="failed to load saved note")
+    return _to_note_response(saved_note)
 
 
-@router.get("/notes", response_model=list[NoteResponse])
-def list_notes(db: Session = Depends(get_db)) -> list[Note]:
+@router.get("/notes", response_model=list[NoteCreateResponse])
+def list_notes(db: Session = Depends(get_db)) -> list[NoteCreateResponse]:
     # Return newest notes first to improve usability in /docs and frontend.
-    return db.query(Note).order_by(Note.created_at.desc()).all()
+    notes = db.query(Note).options(joinedload(Note.tags)).order_by(Note.created_at.desc()).all()
+    return [_to_note_response(note) for note in notes]
+
+
+@router.get("/search", response_model=list[NoteCreateResponse])
+def search_notes(q: str = Query(min_length=1), db: Session = Depends(get_db)) -> list[NoteCreateResponse]:
+    query_text = q.strip()
+    if not query_text:
+        return []
+
+    search_term = f"%{query_text}%"
+    results = (
+        db.query(Note)
+        .options(joinedload(Note.tags))
+        .outerjoin(Note.tags)
+        .filter(
+            or_(
+                Note.content.ilike(search_term),
+                Note.summary.ilike(search_term),
+                Tag.name.ilike(search_term),
+            )
+        )
+        .distinct()
+        .order_by(Note.created_at.desc())
+        .all()
+    )
+    return [_to_note_response(note) for note in results]
