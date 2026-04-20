@@ -4,11 +4,64 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hivemind</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 24px;
+        max-width: 900px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 120px;
+      }
+      input {
+        width: 100%;
+        margin-bottom: 8px;
+      }
+      button {
+        margin-top: 8px;
+        margin-right: 8px;
+      }
+      .note {
+        border: 1px solid #ddd;
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+      }
+      .note details {
+        margin-top: 8px;
+      }
+      .tags {
+        color: #3a5a9b;
+        font-size: 0.9rem;
+      }
+      .status {
+        margin-top: 10px;
+        font-size: 0.95rem;
+      }
+    </style>
   </head>
   <body>
     <main>
       <h1>Hivemind</h1>
-      <p>Frontend skeleton ready.</p>
+      <p>Capture ideas quickly and find them later.</p>
+
+      <section>
+        <h2>Add Note</h2>
+        <textarea id="noteInput" placeholder="Paste text, ideas, or article snippets here..."></textarea>
+        <br />
+        <button id="saveNoteBtn">Save note</button>
+      </section>
+
+      <section>
+        <h2>Search</h2>
+        <input id="searchInput" type="text" placeholder='Search (examples: "cat", "cats", "what is a cat?")' />
+        <button id="searchBtn">Search</button>
+        <button id="loadAllBtn">Load all notes</button>
+      </section>
+
+      <p id="statusText" class="status"></p>
+      <section id="notesList"></section>
     </main>
     <script src="./app.js"></script>
   </body>
