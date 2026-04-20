@@ -286,7 +286,7 @@ def search_notes(q: str = Query(min_length=1), db: Session = Depends(get_db)) ->
         .order_by(Note.created_at.desc())
         .all()
     )
-    ranked_results: list[tuple[float, Note]] = []
+    ranked_results: list[tuple[float, float, float, Note]] = []
     for note in notes:
         note_embedding = _read_note_embedding(note)
         semantic_score = cosine_similarity(query_embedding, note_embedding)
@@ -296,11 +296,21 @@ def search_notes(q: str = Query(min_length=1), db: Session = Depends(get_db)) ->
         combined_score = _combined_relevance_score(semantic_score, keyword_score)
         if combined_score < 0.12 and keyword_score == 0:
             continue
-        ranked_results.append((combined_score, note))
+        ranked_results.append((combined_score, keyword_score, semantic_score, note))
 
     ranked_results.sort(key=lambda item: item[0], reverse=True)
 
+    # If we have direct keyword hits, prefer those and hide broad semantic noise.
+    direct_matches = [item for item in ranked_results if item[1] > 0]
+    if direct_matches:
+        ranked_results = direct_matches
+    elif ranked_results:
+        # For purely semantic search, keep only results reasonably close to the best hit.
+        best_score = ranked_results[0][0]
+        minimum_score = max(0.18, best_score * 0.65)
+        ranked_results = [item for item in ranked_results if item[0] >= minimum_score]
+
     response: list[NoteCreateResponse] = []
-    for _score, note in ranked_results[:20]:
+    for _combined_score, _keyword_score, _semantic_score, note in ranked_results[:8]:
         response.append(_to_note_response(note))
     return response
