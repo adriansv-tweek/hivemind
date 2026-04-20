@@ -6,17 +6,35 @@ const pickFileBtn = document.getElementById("pickFileBtn");
 const fileInput = document.getElementById("fileInput");
 const uploadFileBtn = document.getElementById("uploadFileBtn");
 const uploadStatus = document.getElementById("uploadStatus");
+const uploadProgress = document.getElementById("uploadProgress");
+const uploadProgressText = document.getElementById("uploadProgressText");
+const toggleSearchBtn = document.getElementById("toggleSearchBtn");
+const searchPanel = document.getElementById("searchPanel");
 const searchInput = document.getElementById("searchInput");
 const searchBtn = document.getElementById("searchBtn");
 const loadAllBtn = document.getElementById("loadAllBtn");
 const notesList = document.getElementById("notesList");
 const statusText = document.getElementById("statusText");
+const notesMeta = document.getElementById("notesMeta");
 const REQUEST_TIMEOUT_MS = 20000;
+const FILE_UPLOAD_TIMEOUT_MS = 120000;
 let pendingPastedFile = null;
+const SEARCH_ICON_SVG = `
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+    <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"></circle>
+    <line x1="16" y1="16" x2="21" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></line>
+  </svg>
+`;
+const CLOSE_ICON_SVG = `
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+    <line x1="6" y1="6" x2="18" y2="18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></line>
+    <line x1="18" y1="6" x2="6" y2="18" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></line>
+  </svg>
+`;
 
 function setStatus(message, isError = false) {
   statusText.textContent = message;
-  statusText.style.color = isError ? "#b42318" : "#333";
+  statusText.classList.toggle("error", isError);
 }
 
 function formatTags(tags) {
@@ -48,7 +66,14 @@ function getErrorMessage(error, fallbackMessage) {
 
 function setUploadStatus(message, isError = false) {
   uploadStatus.textContent = message;
-  uploadStatus.style.color = isError ? "#b42318" : "#333";
+  uploadStatus.classList.toggle("error", isError);
+}
+
+function setUploadInProgress(isLoading, message = "Processing file...") {
+  uploadProgress.classList.toggle("visible", isLoading);
+  uploadProgressText.textContent = message;
+  uploadFileBtn.disabled = isLoading;
+  pickFileBtn.disabled = isLoading;
 }
 
 function setPendingPastedFile(file) {
@@ -62,12 +87,37 @@ function setPendingPastedFile(file) {
   setUploadStatus(`Attached file ready: ${file.name}`);
 }
 
-function renderNotes(notes) {
+function clearRenderedNotes() {
+  notesMeta.textContent = "";
   notesList.innerHTML = "";
+}
+
+function setSearchPanelOpen(isOpen) {
+  searchPanel.classList.toggle("search-panel-hidden", !isOpen);
+  toggleSearchBtn.setAttribute("aria-expanded", String(isOpen));
+  toggleSearchBtn.innerHTML = isOpen ? CLOSE_ICON_SVG : SEARCH_ICON_SVG;
+  toggleSearchBtn.title = isOpen ? "Close search" : "Search";
+  toggleSearchBtn.setAttribute("aria-label", isOpen ? "Close search" : "Open search");
+  if (!isOpen) {
+    // Return to clean capture mode when search closes.
+    clearRenderedNotes();
+    setStatus("");
+    searchInput.value = "";
+    return;
+  }
+  if (isOpen) {
+    searchInput.focus();
+  }
+}
+
+function renderNotes(notes) {
+  clearRenderedNotes();
   if (!notes || notes.length === 0) {
     notesList.innerHTML = "<p>No notes found yet.</p>";
     return;
   }
+
+  notesMeta.textContent = `${notes.length} notes found.`;
 
   for (const note of notes) {
     const noteCard = document.createElement("article");
@@ -76,11 +126,11 @@ function renderNotes(notes) {
       <p><strong>Summary:</strong> ${note.summary || "No summary yet"}</p>
       <p class="tags"><strong>Tags:</strong> ${formatTags(note.tags)}</p>
       <details>
-        <summary>Read full note</summary>
+        <summary>Read Full Note</summary>
         <p>${note.content}</p>
       </details>
       <button class="delete-note-btn" data-note-id="${note.id}">Delete note</button>
-      <p><small>${new Date(note.created_at).toLocaleString()}</small></p>
+      <p class="note-date">${new Date(note.created_at).toLocaleString()}</p>
     `;
     notesList.appendChild(noteCard);
   }
@@ -129,8 +179,8 @@ async function createNote() {
     }
 
     noteInput.value = "";
-    setStatus("Note saved.");
-    await loadAllNotes();
+    clearRenderedNotes();
+    setStatus("Note saved. Notes stay hidden until you search or click Load all notes.");
   } catch (error) {
     setStatus(getErrorMessage(error, "Failed to save note"), true);
   }
@@ -144,7 +194,8 @@ async function uploadSelectedFile() {
   }
 
   setStatus("Uploading file...");
-  setUploadStatus(`Processing ${selectedFile.name}...`);
+  setUploadStatus(`Processing ${selectedFile.name}... this can take up to 1-2 minutes for screenshots.`);
+  setUploadInProgress(true, "Running OCR and saving note...");
   try {
     const formData = new FormData();
     formData.append("file", selectedFile, selectedFile.name);
@@ -152,7 +203,7 @@ async function uploadSelectedFile() {
     const response = await fetchWithTimeout(`${API_BASE_URL}/ingest/file`, {
       method: "POST",
       body: formData,
-    });
+    }, FILE_UPLOAD_TIMEOUT_MS);
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.detail || "Failed to upload file");
@@ -160,20 +211,23 @@ async function uploadSelectedFile() {
 
     fileInput.value = "";
     setPendingPastedFile(null);
-    setStatus("File saved as note.");
+    clearRenderedNotes();
+    setStatus("File saved as note. Notes stay hidden until you search or click Load all notes.");
     setUploadStatus("File processed and saved.");
-    await loadAllNotes();
   } catch (error) {
     const message = getErrorMessage(error, "Failed to upload file");
     setStatus(message, true);
     setUploadStatus(message, true);
+  } finally {
+    setUploadInProgress(false);
   }
 }
 
 async function searchNotes() {
   const query = searchInput.value.trim();
   if (!query) {
-    await loadAllNotes();
+    clearRenderedNotes();
+    setStatus("Type a search query, or click Load all notes.", false);
     return;
   }
 
@@ -225,6 +279,10 @@ async function deleteNote(noteId) {
 saveNoteBtn.addEventListener("click", createNote);
 uploadFileBtn.addEventListener("click", uploadSelectedFile);
 pickFileBtn.addEventListener("click", () => fileInput.click());
+toggleSearchBtn.addEventListener("click", () => {
+  const isOpen = searchPanel.classList.contains("search-panel-hidden");
+  setSearchPanelOpen(isOpen);
+});
 searchBtn.addEventListener("click", searchNotes);
 loadAllBtn.addEventListener("click", loadAllNotes);
 fileInput.addEventListener("change", () => {
@@ -255,7 +313,17 @@ noteInput.addEventListener("paste", (event) => {
     return;
   }
 });
+noteInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" || event.shiftKey) {
+    return;
+  }
+  event.preventDefault();
+  createNote();
+});
 
 uploadFileBtn.style.display = "none";
-
-loadAllNotes();
+setUploadInProgress(false);
+setStatus("");
+setUploadStatus("");
+clearRenderedNotes();
+setSearchPanelOpen(false);

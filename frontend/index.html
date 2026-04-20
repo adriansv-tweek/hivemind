@@ -5,87 +5,356 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hivemind</title>
     <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: Arial, sans-serif;
-        margin: 24px;
-        max-width: 900px;
+        font-family:
+          "Inter",
+          "Segoe UI",
+          Arial,
+          sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        color: #eceaf8;
+        background:
+          radial-gradient(1200px 600px at 20% 0%, rgba(83, 58, 164, 0.22), transparent 50%),
+          radial-gradient(900px 500px at 80% 20%, rgba(61, 89, 181, 0.16), transparent 55%),
+          linear-gradient(180deg, #11101a 0%, #0b0a12 100%);
       }
-      textarea {
-        width: 100%;
-        min-height: 120px;
+
+      main {
+        width: min(860px, 100% - 40px);
+        margin: 52px auto;
+        padding: 40px;
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(17, 16, 31, 0.6);
+        box-shadow:
+          0 30px 80px rgba(0, 0, 0, 0.45),
+          inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(8px);
       }
+
+      h1 {
+        margin: 0;
+        text-align: center;
+        font-size: 3rem;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+      }
+
+      .subtitle {
+        margin: 10px 0 34px;
+        text-align: center;
+        color: #b7b4ce;
+        font-size: 1.06rem;
+      }
+
+      .top-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 8px;
+      }
+
+      .icon-btn {
+        width: 42px;
+        height: 42px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+      }
+
+      .icon-btn svg {
+        display: block;
+      }
+
+      h2 {
+        margin: 26px 0 14px;
+        font-size: 2rem;
+        font-weight: 650;
+        letter-spacing: 0.2px;
+      }
+
+      .glass-card {
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        padding: 16px;
+      }
+
       .note-input-header {
         display: flex;
-        gap: 8px;
+        gap: 10px;
         align-items: center;
-        margin-bottom: 8px;
-      }
-      .note-textarea {
-        width: 100%;
-      }
-      input {
-        width: 100%;
-        margin-bottom: 8px;
-      }
-      button {
-        margin-top: 8px;
-        margin-right: 8px;
-      }
-      .inline-file-button {
-        margin-top: 0;
-        white-space: nowrap;
-      }
-      .delete-note-btn {
-        margin-top: 12px;
-      }
-      .note {
-        border: 1px solid #ddd;
-        padding: 12px;
-        border-radius: 8px;
         margin-bottom: 10px;
       }
+
+      .note-textarea {
+        width: 100%;
+        min-height: 140px;
+        resize: vertical;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.04);
+        color: #f4f3ff;
+        padding: 12px 14px;
+        font-size: 1rem;
+        outline: none;
+      }
+
+      .note-textarea::placeholder {
+        color: #9d9bb2;
+      }
+
+      .note-textarea:focus,
+      .search-input:focus {
+        border-color: rgba(166, 144, 255, 0.7);
+        box-shadow: 0 0 0 3px rgba(166, 144, 255, 0.18);
+      }
+
+      .search-input {
+        width: 100%;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.11);
+        background: rgba(255, 255, 255, 0.04);
+        color: #f4f3ff;
+        padding: 11px 15px;
+        margin-bottom: 12px;
+        outline: none;
+      }
+
+      .search-input::placeholder {
+        color: #9d9bb2;
+      }
+
+      button {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.06);
+        color: #edeaff;
+        border-radius: 10px;
+        padding: 9px 14px;
+        font-size: 0.95rem;
+        font-weight: 520;
+        cursor: pointer;
+        transition: 0.18s ease;
+      }
+
+      button:hover {
+        background: rgba(255, 255, 255, 0.11);
+        border-color: rgba(255, 255, 255, 0.28);
+      }
+
+      .inline-file-button {
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        font-size: 1.5rem;
+        line-height: 1;
+        white-space: nowrap;
+        padding: 0;
+      }
+
+      .primary-btn {
+        margin-top: 8px;
+        min-width: 130px;
+      }
+
+      .action-row {
+        display: flex;
+        gap: 10px;
+        margin-top: 2px;
+      }
+
+      .search-panel-hidden {
+        display: none;
+      }
+
+      .search-tabs {
+        display: inline-flex;
+        overflow: hidden;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 12px;
+      }
+
+      .tab-pill {
+        padding: 7px 12px;
+        font-size: 0.86rem;
+        color: #b8b6ce;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .tab-pill.active {
+        color: #f2efff;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .delete-note-btn {
+        margin-top: 10px;
+        padding: 7px 11px;
+        font-size: 0.86rem;
+      }
+
+      .hidden-file-input {
+        display: none;
+      }
+
+      .note {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.02);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+        padding: 16px;
+        margin-top: 12px;
+      }
+
+      .note p {
+        margin: 0 0 8px;
+        line-height: 1.45;
+        color: #d7d5e8;
+      }
+
+      .note strong {
+        color: #f4f2ff;
+      }
+
       .note details {
         margin-top: 8px;
       }
+
+      .note details > summary {
+        cursor: pointer;
+        color: #c7c4dd;
+        user-select: none;
+      }
+
+      .note details[open] > summary {
+        margin-bottom: 10px;
+      }
+
       .tags {
-        color: #3a5a9b;
+        color: #a9b4ff !important;
+        font-size: 0.88rem;
+      }
+
+      .status,
+      .upload-status {
+        margin-top: 10px;
+        min-height: 20px;
+        font-size: 0.92rem;
+        color: #9f9cb8;
+      }
+
+      .upload-progress {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+        color: #c8c4df;
         font-size: 0.9rem;
       }
-      .status {
-        margin-top: 10px;
-        font-size: 0.95rem;
+
+      .upload-progress.visible {
+        display: inline-flex;
+      }
+
+      .spinner-dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid rgba(173, 161, 255, 0.35);
+        border-top-color: rgba(173, 161, 255, 0.95);
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .status.error,
+      .upload-status.error {
+        color: #ff8b98;
+      }
+
+      .notes-meta {
+        margin: 12px 0 8px;
+        color: #b3b0c9;
+      }
+
+      .note-date {
+        color: #a8a6bc;
+        font-size: 0.84rem;
       }
     </style>
   </head>
   <body>
     <main>
       <h1>Hivemind</h1>
-      <p>Capture ideas quickly and find them later.</p>
+      <p class="subtitle">Capture ideas quickly and find them later.</p>
+      <div class="top-actions">
+        <button
+          id="toggleSearchBtn"
+          class="icon-btn"
+          type="button"
+          aria-label="Open search"
+          aria-expanded="false"
+          title="Search"
+        ></button>
+      </div>
 
       <section>
-        <h2>Add Note</h2>
-        <div class="note-input-header">
-          <textarea
-            id="noteInput"
-            class="note-textarea"
-            placeholder="Paste text here, or paste a screenshot with Ctrl+V..."
-          ></textarea>
-          <button id="pickFileBtn" class="inline-file-button" type="button">+ Add file</button>
+        <div class="glass-card">
+          <div class="note-input-header">
+            <textarea
+              id="noteInput"
+              class="note-textarea"
+              placeholder="Paste text or ideas here..."
+            ></textarea>
+            <button id="pickFileBtn" class="inline-file-button" type="button" aria-label="Add file" title="Add file">+</button>
+          </div>
+          <button id="saveNoteBtn" class="primary-btn">Save Note</button>
+          <p id="uploadStatus" class="upload-status"></p>
+          <div id="uploadProgress" class="upload-progress">
+            <span class="spinner-dot" aria-hidden="true"></span>
+            <span id="uploadProgressText">Processing file...</span>
+          </div>
+          <input id="fileInput" class="hidden-file-input" type="file" accept=".pdf,image/*" />
+          <button id="uploadFileBtn" type="button">Save attached file</button>
         </div>
-        <button id="saveNoteBtn">Save note</button>
-        <p id="uploadStatus"></p>
-        <input id="fileInput" type="file" accept=".pdf,image/*" hidden />
-        <button id="uploadFileBtn" type="button">Save attached file</button>
       </section>
 
-      <section>
+      <section id="searchPanel" class="search-panel-hidden">
         <h2>Search</h2>
-        <input id="searchInput" type="text" placeholder='Search (examples: "cat", "cats", "what is a cat?")' />
-        <button id="searchBtn">Search</button>
-        <button id="loadAllBtn">Load all notes</button>
+        <div class="glass-card">
+          <div class="search-tabs" aria-hidden="true">
+            <span class="tab-pill active">All Notes</span>
+            <span class="tab-pill">Search Results</span>
+          </div>
+          <input id="searchInput" class="search-input" type="text" placeholder="Search..." />
+          <div class="action-row">
+            <button id="searchBtn">Search</button>
+            <button id="loadAllBtn">Load all notes</button>
+          </div>
+        </div>
       </section>
 
       <p id="statusText" class="status"></p>
+      <p id="notesMeta" class="notes-meta"></p>
       <section id="notesList"></section>
     </main>
     <script src="./app.js"></script>
