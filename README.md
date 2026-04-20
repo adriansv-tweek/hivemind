@@ -1,18 +1,31 @@
-# Hivemind 🧠
+# Hivemind
 
-A Personal Knowledge System that transforms unstructured text into structured, searchable knowledge using AI.
+A personal knowledge tool that turns raw text into structured, searchable notes.
 
-## Features
-- Store notes
-- Automatic summaries
-- Tag generation
-- Search functionality
+## Features right now
+- Save notes from raw text
+- Generate summary + tags
+- Store tags in database
+- Search by content, summary, and tags
+- Simple web UI for add/search/list notes
 
 ## Tech Stack
 - FastAPI
 - SQLite
-- OpenAI API
+- SQLAlchemy
+- OpenAI API (optional, fallback exists)
 
 ## How to run
 ```bash
-uvicorn main:app --reload
+pip install -r requirements.txt
+uvicorn backend.main:app --reload
+```
+
+Then open `frontend/index.html` in your browser.
+
+Optional (for real AI output instead of fallback):
+
+PowerShell:
+```bash
+$env:OPENAI_API_KEY="your_key_here"
+```
