@@ -7,6 +7,7 @@ const searchBtn = document.getElementById("searchBtn");
 const loadAllBtn = document.getElementById("loadAllBtn");
 const notesList = document.getElementById("notesList");
 const statusText = document.getElementById("statusText");
+const REQUEST_TIMEOUT_MS = 20000;
 
 function setStatus(message, isError = false) {
   statusText.textContent = message;
@@ -18,6 +19,26 @@ function formatTags(tags) {
     return "No tags";
   }
   return tags.join(", ");
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+function getErrorMessage(error, fallbackMessage) {
+  if (error?.name === "AbortError") {
+    return "Request timed out. Check if backend is running.";
+  }
+  if (error?.message) {
+    return error.message;
+  }
+  return fallbackMessage;
 }
 
 function renderNotes(notes) {
@@ -51,7 +72,7 @@ function renderNotes(notes) {
 async function loadAllNotes() {
   setStatus("Loading notes...");
   try {
-    const response = await fetch(`${API_BASE_URL}/notes`);
+    const response = await fetchWithTimeout(`${API_BASE_URL}/notes`);
     if (!response.ok) {
       throw new Error("Could not load notes");
     }
@@ -59,7 +80,7 @@ async function loadAllNotes() {
     renderNotes(notes);
     setStatus(`Loaded ${notes.length} notes.`);
   } catch (error) {
-    setStatus(error.message, true);
+    setStatus(getErrorMessage(error, "Could not load notes"), true);
   }
 }
 
@@ -72,7 +93,7 @@ async function createNote() {
 
   setStatus("Saving note...");
   try {
-    const response = await fetch(`${API_BASE_URL}/note`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/note`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content }),
@@ -86,7 +107,7 @@ async function createNote() {
     setStatus("Note saved.");
     await loadAllNotes();
   } catch (error) {
-    setStatus(error.message, true);
+    setStatus(getErrorMessage(error, "Failed to save note"), true);
   }
 }
 
@@ -99,7 +120,7 @@ async function searchNotes() {
 
   setStatus(`Searching for "${query}"...`);
   try {
-    const response = await fetch(`${API_BASE_URL}/search?q=${encodeURIComponent(query)}`);
+    const response = await fetchWithTimeout(`${API_BASE_URL}/search?q=${encodeURIComponent(query)}`);
     if (!response.ok) {
       throw new Error("Search failed");
     }
@@ -107,7 +128,7 @@ async function searchNotes() {
     renderNotes(notes);
     setStatus(`Found ${notes.length} notes ranked by semantic relevance.`);
   } catch (error) {
-    setStatus(error.message, true);
+    setStatus(getErrorMessage(error, "Search failed"), true);
   }
 }
 
