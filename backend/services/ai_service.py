@@ -209,8 +209,10 @@ def extract_summary_and_tags(text: str) -> dict[str, object]:
         model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
         prompt = (
-            "Summarize this text in 1-2 concise sentences in the same language as the text. "
-            "Paraphrase the text and avoid copying the first sentence directly. "
+            "Read the full text and write a fresh 1-2 sentence summary in the same language as the text. "
+            "The summary should explain what the whole note is about at a high level. "
+            "Paraphrase the text and avoid copying the opening sentence directly. "
+            "Prefer an overview of the main topic, purpose, or key facts. "
             "Also provide 3-5 relevant tags that are useful for later search. "
             "Use broad concepts or topics, not random first words or filler words.\n"
             'Return ONLY valid JSON in this exact shape: {"summary": "...", "tags": ["...", "..."]}.\n\n'
