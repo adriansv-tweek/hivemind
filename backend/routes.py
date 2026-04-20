@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .database import SessionLocal
 from .models import Note, NoteEmbedding, Tag
-from .services.ai_service import cosine_similarity, create_embedding, extract_summary_and_tags
+from .services.ai_service import clean_tag_candidates, cosine_similarity, create_embedding, extract_summary_and_tags
 
 router = APIRouter()
 
@@ -109,16 +109,8 @@ def _extract_search_terms(query_text: str) -> list[str]:
 
 
 def _normalize_tags(raw_tags: list[object]) -> list[str]:
-    # Normalize tags so duplicates like "AI" and "ai" collapse.
-    normalized = []
-    seen = set()
-    for tag in raw_tags:
-        name = str(tag).strip().lower()
-        if not name or name in seen:
-            continue
-        seen.add(name)
-        normalized.append(name)
-    return normalized[:5]
+    # Keep tag hygiene in one place for all flows.
+    return clean_tag_candidates(raw_tags, max_tags=5)
 
 
 def _to_note_response(note: Note) -> NoteCreateResponse:

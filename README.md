@@ -30,6 +30,8 @@ PowerShell:
 $env:OPENAI_API_KEY="your_key_here"
 ```
 
+Without `OPENAI_API_KEY`, the app uses local fallback logic for summaries/tags/embeddings.
+
 ## Reindex old notes after updates
 
 If you improved summary/tag logic and want old notes to use it too:

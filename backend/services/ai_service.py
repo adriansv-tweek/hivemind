@@ -20,6 +20,18 @@ COMMON_STOP_WORDS = {
     "ofte", "bare", "under", "over", "innen", "mot", "hos", "seg", "sammen", "finnes",
 }
 
+# Extra words that are usually weak as standalone tags.
+GENERIC_TAG_WORDS = {
+    "mange",
+    "rundt",
+    "navnet",
+    "ordet",
+    "brukt",
+    "ulike",
+    "kalles",
+    "kalt",
+}
+
 
 def _normalize_word(word: str) -> str:
     """
@@ -34,6 +46,32 @@ def _normalize_word(word: str) -> str:
     if len(lowered) > 3 and lowered.endswith("s"):
         return lowered[:-1]
     return lowered
+
+
+def clean_tag_candidates(raw_tags: list[object], max_tags: int = 5) -> list[str]:
+    """
+    Normalize and filter tag candidates.
+    Works for both OpenAI tags and fallback tags.
+    """
+    cleaned: list[str] = []
+    seen = set()
+    for raw_tag in raw_tags:
+        candidate = _normalize_word(str(raw_tag).strip().lower())
+        if not candidate:
+            continue
+        if candidate in seen:
+            continue
+        if len(candidate) < 3:
+            continue
+        if candidate in COMMON_STOP_WORDS or candidate in GENERIC_TAG_WORDS:
+            continue
+        if candidate.isdigit():
+            continue
+        seen.add(candidate)
+        cleaned.append(candidate)
+        if len(cleaned) == max_tags:
+            break
+    return cleaned
 
 
 def _fallback_summary_and_tags(text: str) -> dict[str, object]:
@@ -87,7 +125,7 @@ def _fallback_summary_and_tags(text: str) -> dict[str, object]:
                 summary = f"{summary[:317].rstrip()}..."
 
     # Pick tags from frequency profile, preferring concrete keywords.
-    top_tags = [tag for tag, _count in keyword_counter.most_common(5)]
+    top_tags = clean_tag_candidates([tag for tag, _count in keyword_counter.most_common(20)])
     return {"summary": summary or "No summary available.", "tags": top_tags}
 
 
@@ -171,7 +209,8 @@ def extract_summary_and_tags(text: str) -> dict[str, object]:
         model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
         prompt = (
-            "Summarize this text in 1-2 concise sentences. "
+            "Summarize this text in 1-2 concise sentences in the same language as the text. "
+            "Paraphrase the text and avoid copying the first sentence directly. "
             "Also provide 3-5 relevant tags that are useful for later search. "
             "Use broad concepts or topics, not random first words or filler words.\n"
             'Return ONLY valid JSON in this exact shape: {"summary": "...", "tags": ["...", "..."]}.\n\n'
@@ -194,7 +233,7 @@ def extract_summary_and_tags(text: str) -> dict[str, object]:
         tags = parsed.get("tags", [])
         if not isinstance(tags, list):
             tags = []
-        clean_tags = [str(tag).strip() for tag in tags if str(tag).strip()]
+        clean_tags = clean_tag_candidates(tags)
 
         if not summary:
             return _fallback_summary_and_tags(text)
