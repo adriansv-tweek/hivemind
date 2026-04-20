@@ -1,7 +1,6 @@
 const API_BASE_URL = "http://127.0.0.1:8000";
 
 const noteInput = document.getElementById("noteInput");
-const saveNoteBtn = document.getElementById("saveNoteBtn");
 const pickFileBtn = document.getElementById("pickFileBtn");
 const fileInput = document.getElementById("fileInput");
 const uploadFileBtn = document.getElementById("uploadFileBtn");
@@ -10,9 +9,9 @@ const uploadProgress = document.getElementById("uploadProgress");
 const uploadProgressText = document.getElementById("uploadProgressText");
 const toggleSearchBtn = document.getElementById("toggleSearchBtn");
 const searchPanel = document.getElementById("searchPanel");
+const appShell = document.querySelector(".app-shell");
 const searchInput = document.getElementById("searchInput");
-const searchBtn = document.getElementById("searchBtn");
-const loadAllBtn = document.getElementById("loadAllBtn");
+const loadRecentBtn = document.getElementById("loadRecentBtn");
 const notesList = document.getElementById("notesList");
 const statusText = document.getElementById("statusText");
 const notesMeta = document.getElementById("notesMeta");
@@ -76,6 +75,13 @@ function setUploadInProgress(isLoading, message = "Processing file...") {
   pickFileBtn.disabled = isLoading;
 }
 
+function autoResizeNoteInput() {
+  // Grow naturally with content while keeping a sensible max height.
+  noteInput.style.height = "auto";
+  const nextHeight = Math.min(noteInput.scrollHeight, 260);
+  noteInput.style.height = `${Math.max(nextHeight, 56)}px`;
+}
+
 function setPendingPastedFile(file) {
   pendingPastedFile = file;
   if (!file) {
@@ -92,8 +98,11 @@ function clearRenderedNotes() {
   notesList.innerHTML = "";
 }
 
+const RECENT_NOTES_LIMIT = 10;
+
 function setSearchPanelOpen(isOpen) {
   searchPanel.classList.toggle("search-panel-hidden", !isOpen);
+  appShell.classList.toggle("search-open", isOpen);
   toggleSearchBtn.setAttribute("aria-expanded", String(isOpen));
   toggleSearchBtn.innerHTML = isOpen ? CLOSE_ICON_SVG : SEARCH_ICON_SVG;
   toggleSearchBtn.title = isOpen ? "Close search" : "Search";
@@ -144,18 +153,18 @@ function renderNotes(notes) {
   }
 }
 
-async function loadAllNotes() {
-  setStatus("Loading notes...");
+async function loadRecentNotes() {
+  setStatus("Loading recent notes...");
   try {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/notes`);
+    const response = await fetchWithTimeout(`${API_BASE_URL}/notes?limit=${RECENT_NOTES_LIMIT}`);
     if (!response.ok) {
       throw new Error("Could not load notes");
     }
     const notes = await response.json();
     renderNotes(notes);
-    setStatus(`Loaded ${notes.length} notes.`);
+    setStatus(`Loaded ${notes.length} recent notes.`);
   } catch (error) {
-    setStatus(getErrorMessage(error, "Could not load notes"), true);
+    setStatus(getErrorMessage(error, "Could not load recent notes"), true);
   }
 }
 
@@ -179,8 +188,9 @@ async function createNote() {
     }
 
     noteInput.value = "";
+    autoResizeNoteInput();
     clearRenderedNotes();
-    setStatus("Note saved. Notes stay hidden until you search or click Load all notes.");
+    setStatus("Note saved. Notes stay hidden until you search or click Load recent notes.");
   } catch (error) {
     setStatus(getErrorMessage(error, "Failed to save note"), true);
   }
@@ -212,7 +222,7 @@ async function uploadSelectedFile() {
     fileInput.value = "";
     setPendingPastedFile(null);
     clearRenderedNotes();
-    setStatus("File saved as note. Notes stay hidden until you search or click Load all notes.");
+    setStatus("File saved as note. Notes stay hidden until you search or click Load recent notes.");
     setUploadStatus("File processed and saved.");
   } catch (error) {
     const message = getErrorMessage(error, "Failed to upload file");
@@ -227,7 +237,7 @@ async function searchNotes() {
   const query = searchInput.value.trim();
   if (!query) {
     clearRenderedNotes();
-    setStatus("Type a search query, or click Load all notes.", false);
+    setStatus("Type a search query and press Enter, or click Load recent notes.", false);
     return;
   }
 
@@ -270,21 +280,19 @@ async function deleteNote(noteId) {
       await searchNotes();
       return;
     }
-    await loadAllNotes();
+    await loadRecentNotes();
   } catch (error) {
     setStatus(getErrorMessage(error, "Failed to delete note"), true);
   }
 }
 
-saveNoteBtn.addEventListener("click", createNote);
 uploadFileBtn.addEventListener("click", uploadSelectedFile);
 pickFileBtn.addEventListener("click", () => fileInput.click());
 toggleSearchBtn.addEventListener("click", () => {
   const isOpen = searchPanel.classList.contains("search-panel-hidden");
   setSearchPanelOpen(isOpen);
 });
-searchBtn.addEventListener("click", searchNotes);
-loadAllBtn.addEventListener("click", loadAllNotes);
+loadRecentBtn.addEventListener("click", loadRecentNotes);
 fileInput.addEventListener("change", () => {
   const file = fileInput.files[0];
   if (!file) {
@@ -313,12 +321,20 @@ noteInput.addEventListener("paste", (event) => {
     return;
   }
 });
+noteInput.addEventListener("input", autoResizeNoteInput);
 noteInput.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" || event.shiftKey) {
     return;
   }
   event.preventDefault();
   createNote();
+});
+searchInput.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") {
+    return;
+  }
+  event.preventDefault();
+  searchNotes();
 });
 
 uploadFileBtn.style.display = "none";
@@ -327,3 +343,4 @@ setStatus("");
 setUploadStatus("");
 clearRenderedNotes();
 setSearchPanelOpen(false);
+autoResizeNoteInput();
