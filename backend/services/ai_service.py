@@ -1,7 +1,9 @@
 import json
+import math
 import os
 import re
 from collections import Counter
+from hashlib import md5
 
 from openai import OpenAI
 
@@ -82,6 +84,72 @@ def _fallback_summary_and_tags(text: str) -> dict[str, object]:
 
     top_tags = [tag for tag, _count in keyword_counter.most_common(5)]
     return {"summary": summary or "No summary available.", "tags": top_tags}
+
+
+def _fallback_embedding(text: str, dimensions: int = 256) -> list[float]:
+    """
+    Build a deterministic local embedding when OpenAI is unavailable.
+    It is simple, but good enough for MVP semantic matching.
+    """
+    tokens = re.findall(r"[A-Za-z0-9]+", text.lower())
+    if not tokens:
+        return [0.0] * dimensions
+
+    vector = [0.0] * dimensions
+    for token in tokens:
+        normalized = _normalize_word(token)
+        # Stable hash across runs to keep vectors comparable.
+        bucket = int(md5(normalized.encode("utf-8")).hexdigest(), 16) % dimensions
+        vector[bucket] += 1.0
+
+    norm = math.sqrt(sum(value * value for value in vector))
+    if norm == 0:
+        return vector
+    return [value / norm for value in vector]
+
+
+def create_embedding(text: str) -> list[float]:
+    """
+    Create embedding for semantic search.
+    Uses OpenAI embeddings when possible, otherwise local fallback.
+    """
+    cleaned = " ".join(text.split())
+    if not cleaned:
+        return _fallback_embedding("")
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return _fallback_embedding(cleaned)
+
+    try:
+        client = OpenAI(api_key=api_key)
+        model = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+        response = client.embeddings.create(model=model, input=cleaned)
+        return list(response.data[0].embedding)
+    except Exception:
+        return _fallback_embedding(cleaned)
+
+
+def cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
+    """
+    Compute cosine similarity safely even when vectors differ in length.
+    """
+    if not vec_a or not vec_b:
+        return 0.0
+
+    size = min(len(vec_a), len(vec_b))
+    if size == 0:
+        return 0.0
+
+    a = vec_a[:size]
+    b = vec_b[:size]
+
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(y * y for y in b))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
 
 
 def extract_summary_and_tags(text: str) -> dict[str, object]:

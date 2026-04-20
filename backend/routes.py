@@ -1,14 +1,14 @@
 from datetime import datetime
+import json
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from .database import SessionLocal
-from .models import Note, Tag
-from .services.ai_service import extract_summary_and_tags
+from .models import Note, NoteEmbedding, Tag
+from .services.ai_service import cosine_similarity, create_embedding, extract_summary_and_tags
 
 router = APIRouter()
 
@@ -26,6 +26,7 @@ class NoteResponse(BaseModel):
 
 class NoteCreateResponse(NoteResponse):
     tags: list[str]
+    relevance_score: float | None = None
 
 
 SEARCH_STOP_WORDS = {
@@ -123,7 +124,43 @@ def _to_note_response(note: Note) -> NoteCreateResponse:
         summary=note.summary,
         created_at=note.created_at,
         tags=[tag.name for tag in note.tags],
+        relevance_score=None,
     )
+
+
+def _build_note_embedding_text(content: str, summary: str | None, tags: list[str]) -> str:
+    # Store one semantic representation containing content + structure.
+    joined_tags = ", ".join(tags)
+    return f"Summary: {summary or ''}\nTags: {joined_tags}\nContent: {content}"
+
+
+def _keyword_match_score(note: Note, search_terms: list[str]) -> float:
+    if not search_terms:
+        return 0.0
+    searchable_text = " ".join(
+        [
+            note.content or "",
+            note.summary or "",
+            " ".join(tag.name for tag in note.tags),
+        ]
+    ).lower()
+    matches = sum(1 for term in search_terms if term in searchable_text)
+    return matches / max(1, len(search_terms))
+
+
+def _read_note_embedding(note: Note) -> list[float]:
+    # Old notes might not have embedding yet, so compute on the fly.
+    if note.embedding and note.embedding.vector_json:
+        try:
+            parsed = json.loads(note.embedding.vector_json)
+            if isinstance(parsed, list):
+                return [float(value) for value in parsed]
+        except Exception:
+            pass
+
+    note_tags = [tag.name for tag in note.tags]
+    embedding_text = _build_note_embedding_text(note.content, note.summary, note_tags)
+    return create_embedding(embedding_text)
 
 
 def get_db() -> Session:
@@ -165,10 +202,17 @@ def create_note(payload: NoteCreate, db: Session = Depends(get_db)) -> NoteCreat
             continue
         note.tags.append(Tag(name=tag_name))
 
+    # Save semantic embedding so future search can find this note by meaning.
+    embedding_text = _build_note_embedding_text(cleaned_content, ai_summary, clean_tags)
+    note.embedding = NoteEmbedding(vector_json=json.dumps(create_embedding(embedding_text)))
+
     db.add(note)
     db.commit()
     saved_note = (
-        db.query(Note).options(joinedload(Note.tags)).filter(Note.id == note.id).first()
+        db.query(Note)
+        .options(joinedload(Note.tags), joinedload(Note.embedding))
+        .filter(Note.id == note.id)
+        .first()
     )
     if not saved_note:
         raise HTTPException(status_code=500, detail="failed to load saved note")
@@ -178,7 +222,12 @@ def create_note(payload: NoteCreate, db: Session = Depends(get_db)) -> NoteCreat
 @router.get("/notes", response_model=list[NoteCreateResponse])
 def list_notes(db: Session = Depends(get_db)) -> list[NoteCreateResponse]:
     # Return newest notes first to improve usability in /docs and frontend.
-    notes = db.query(Note).options(joinedload(Note.tags)).order_by(Note.created_at.desc()).all()
+    notes = (
+        db.query(Note)
+        .options(joinedload(Note.tags), joinedload(Note.embedding))
+        .order_by(Note.created_at.desc())
+        .all()
+    )
     return [_to_note_response(note) for note in notes]
 
 
@@ -188,27 +237,34 @@ def search_notes(q: str = Query(min_length=1), db: Session = Depends(get_db)) ->
     if not query_text:
         return []
 
-    terms = [f"%{term}%" for term in _extract_search_terms(query_text)]
-    if not terms:
+    search_terms = _extract_search_terms(query_text)
+    if not search_terms:
         return []
 
-    filters = []
-    for term in terms:
-        filters.extend(
-            [
-                Note.content.ilike(term),
-                Note.summary.ilike(term),
-                Tag.name.ilike(term),
-            ]
-        )
-
-    results = (
+    query_embedding = create_embedding(query_text)
+    notes = (
         db.query(Note)
-        .options(joinedload(Note.tags))
-        .outerjoin(Note.tags)
-        .filter(or_(*filters))
-        .distinct()
+        .options(joinedload(Note.tags), joinedload(Note.embedding))
         .order_by(Note.created_at.desc())
         .all()
     )
-    return [_to_note_response(note) for note in results]
+    ranked_results: list[tuple[float, Note]] = []
+    for note in notes:
+        note_embedding = _read_note_embedding(note)
+        semantic_score = cosine_similarity(query_embedding, note_embedding)
+        keyword_score = _keyword_match_score(note, search_terms)
+
+        # Hybrid score keeps literal matches useful while adding semantic recall.
+        combined_score = (0.75 * semantic_score) + (0.25 * keyword_score)
+        if combined_score < 0.12 and keyword_score == 0:
+            continue
+        ranked_results.append((combined_score, note))
+
+    ranked_results.sort(key=lambda item: item[0], reverse=True)
+
+    response: list[NoteCreateResponse] = []
+    for score, note in ranked_results[:20]:
+        note_response = _to_note_response(note)
+        note_response.relevance_score = round(score, 4)
+        response.append(note_response)
+    return response

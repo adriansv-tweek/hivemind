@@ -31,10 +31,15 @@ function renderNotes(notes) {
     const noteCard = document.createElement("article");
     noteCard.className = "note";
     const preview = note.content.length > 220 ? `${note.content.slice(0, 220)}...` : note.content;
+    const relevanceText =
+      typeof note.relevance_score === "number"
+        ? `<p><strong>Match score:</strong> ${(note.relevance_score * 100).toFixed(1)}%</p>`
+        : "";
     noteCard.innerHTML = `
       <p><strong>Summary:</strong> ${note.summary || "No summary yet"}</p>
       <p><strong>Preview:</strong> ${preview}</p>
       <p class="tags"><strong>Tags:</strong> ${formatTags(note.tags)}</p>
+      ${relevanceText}
       <details>
         <summary>Read full note</summary>
         <p>${note.content}</p>
@@ -102,7 +107,7 @@ async function searchNotes() {
     }
     const notes = await response.json();
     renderNotes(notes);
-    setStatus(`Found ${notes.length} notes. Open a result to read full text.`);
+    setStatus(`Found ${notes.length} notes ranked by semantic relevance.`);
   } catch (error) {
     setStatus(error.message, true);
   }
