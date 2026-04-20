@@ -30,6 +30,12 @@ PowerShell:
 $env:OPENAI_API_KEY="your_key_here"
 ```
 
+You can also place the key in a local `.env` file:
+
+```bash
+OPENAI_API_KEY=your_key_here
+```
+
 Without `OPENAI_API_KEY`, the app uses local fallback logic for summaries/tags/embeddings.
 
 ## Reindex old notes after updates
@@ -40,3 +46,10 @@ If you improved summary/tag logic and want old notes to use it too:
 - Run `POST /admin/reindex`
 
 This recomputes summary, tags, and embeddings for all saved notes.
+
+## Quick AI check
+
+1. Start backend (`uvicorn backend.main:app --reload`)
+2. Save one new note in frontend or `POST /note`
+3. Run `POST /admin/reindex` once if you want old notes refreshed too
+4. Confirm summaries/tags now look more semantic than fallback output
