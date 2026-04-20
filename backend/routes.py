@@ -33,6 +33,11 @@ class ReindexResponse(BaseModel):
     updated_notes: int
 
 
+class DeleteResponse(BaseModel):
+    deleted_id: int
+    message: str
+
+
 SEARCH_STOP_WORDS = {
     "a",
     "an",
@@ -255,6 +260,22 @@ def reindex_notes(db: Session = Depends(get_db)) -> ReindexResponse:
 
     db.commit()
     return ReindexResponse(total_notes=len(notes), updated_notes=updated_count)
+
+
+@router.delete("/note/{note_id}", response_model=DeleteResponse)
+def delete_note(note_id: int, db: Session = Depends(get_db)) -> DeleteResponse:
+    note = (
+        db.query(Note)
+        .options(joinedload(Note.tags), joinedload(Note.embedding))
+        .filter(Note.id == note_id)
+        .first()
+    )
+    if not note:
+        raise HTTPException(status_code=404, detail="note not found")
+
+    db.delete(note)
+    db.commit()
+    return DeleteResponse(deleted_id=note_id, message="note deleted")
 
 
 @router.get("/notes", response_model=list[NoteCreateResponse])

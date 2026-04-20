@@ -58,9 +58,18 @@ function renderNotes(notes) {
         <summary>Read full note</summary>
         <p>${note.content}</p>
       </details>
+      <button class="delete-note-btn" data-note-id="${note.id}">Delete note</button>
       <p><small>${new Date(note.created_at).toLocaleString()}</small></p>
     `;
     notesList.appendChild(noteCard);
+  }
+
+  const deleteButtons = notesList.querySelectorAll(".delete-note-btn");
+  for (const button of deleteButtons) {
+    button.addEventListener("click", async () => {
+      const noteId = button.dataset.noteId;
+      await deleteNote(noteId);
+    });
   }
 }
 
@@ -124,6 +133,37 @@ async function searchNotes() {
     setStatus(`Found ${notes.length} notes.`);
   } catch (error) {
     setStatus(getErrorMessage(error, "Search failed"), true);
+  }
+}
+
+async function deleteNote(noteId) {
+  if (!noteId) {
+    return;
+  }
+
+  const confirmed = window.confirm("Delete this note?");
+  if (!confirmed) {
+    return;
+  }
+
+  setStatus("Deleting note...");
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/note/${noteId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || "Failed to delete note");
+    }
+
+    setStatus("Note deleted.");
+    if (searchInput.value.trim()) {
+      await searchNotes();
+      return;
+    }
+    await loadAllNotes();
+  } catch (error) {
+    setStatus(getErrorMessage(error, "Failed to delete note"), true);
   }
 }
 
