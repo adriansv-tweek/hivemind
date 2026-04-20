@@ -21,45 +21,63 @@
           sans-serif;
         margin: 0;
         min-height: 100vh;
-        color: #eceaf8;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 28px 0;
+        color: #e9e6f5;
         background:
-          radial-gradient(1200px 600px at 20% 0%, rgba(83, 58, 164, 0.22), transparent 50%),
-          radial-gradient(900px 500px at 80% 20%, rgba(61, 89, 181, 0.16), transparent 55%),
-          linear-gradient(180deg, #11101a 0%, #0b0a12 100%);
+          radial-gradient(900px 620px at 16% 10%, rgba(64, 52, 112, 0.34), transparent 72%),
+          radial-gradient(1000px 700px at 86% 12%, rgba(44, 70, 120, 0.22), transparent 68%),
+          linear-gradient(180deg, #13121d 0%, #0c0b14 100%);
       }
 
-      main {
-        width: min(860px, 100% - 40px);
-        margin: 52px auto;
-        padding: 40px;
+      .app-shell {
+        width: min(1240px, 100% - 48px);
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: minmax(0, 900px);
+        justify-content: center;
+        gap: 24px;
+      }
+
+      .app-shell.search-open {
+        grid-template-columns: minmax(0, 900px);
+        justify-content: center;
+        gap: 24px;
+      }
+
+      .main-canvas {
+        min-height: 0;
+        padding: 36px 30px 22px;
         border-radius: 24px;
         border: 1px solid rgba(255, 255, 255, 0.08);
-        background: rgba(17, 16, 31, 0.6);
+        background: rgba(18, 17, 30, 0.58);
         box-shadow:
-          0 30px 80px rgba(0, 0, 0, 0.45),
-          inset 0 1px 0 rgba(255, 255, 255, 0.03);
-        backdrop-filter: blur(8px);
+          0 14px 34px rgba(0, 0, 0, 0.34),
+          inset 0 1px 0 rgba(255, 255, 255, 0.02);
       }
 
       h1 {
         margin: 0;
         text-align: center;
-        font-size: 3rem;
+        font-size: 3.15rem;
         font-weight: 700;
-        letter-spacing: 0.3px;
+        letter-spacing: 0.15px;
+        color: #f0eefc;
       }
 
       .subtitle {
-        margin: 10px 0 34px;
+        margin: 12px 0 42px;
         text-align: center;
-        color: #b7b4ce;
-        font-size: 1.06rem;
+        color: #aeaac7;
+        font-size: 1.08rem;
       }
 
-      .top-actions {
+      .canvas-actions {
         display: flex;
         justify-content: flex-end;
-        margin-bottom: 8px;
+        margin-bottom: 14px;
       }
 
       .icon-btn {
@@ -70,139 +88,90 @@
         align-items: center;
         justify-content: center;
         padding: 0;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.06);
+        color: #dddaf1;
+        box-shadow: 0 5px 16px rgba(0, 0, 0, 0.25);
       }
 
       .icon-btn svg {
         display: block;
       }
 
-      h2 {
-        margin: 26px 0 14px;
-        font-size: 2rem;
-        font-weight: 650;
-        letter-spacing: 0.2px;
-      }
-
-      .glass-card {
-        border-radius: 18px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        background: rgba(255, 255, 255, 0.03);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-        padding: 16px;
-      }
-
-      .note-input-header {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-        margin-bottom: 10px;
+      .composer {
+        position: relative;
+        max-width: 820px;
+        margin: 0 auto;
       }
 
       .note-textarea {
         width: 100%;
-        min-height: 140px;
-        resize: vertical;
-        border-radius: 12px;
+        min-height: 56px;
+        max-height: 260px;
+        resize: none;
+        overflow-y: auto;
+        border-radius: 14px;
         border: 1px solid rgba(255, 255, 255, 0.12);
         background: rgba(255, 255, 255, 0.04);
-        color: #f4f3ff;
-        padding: 12px 14px;
-        font-size: 1rem;
+        color: #ece9fb;
+        padding: 14px 64px 14px 16px;
+        font-size: 0.98rem;
         outline: none;
+        line-height: 1.45;
       }
 
       .note-textarea::placeholder {
-        color: #9d9bb2;
+        color: #9f9ab8;
       }
 
       .note-textarea:focus,
       .search-input:focus {
-        border-color: rgba(166, 144, 255, 0.7);
-        box-shadow: 0 0 0 3px rgba(166, 144, 255, 0.18);
-      }
-
-      .search-input {
-        width: 100%;
-        border-radius: 999px;
-        border: 1px solid rgba(255, 255, 255, 0.11);
-        background: rgba(255, 255, 255, 0.04);
-        color: #f4f3ff;
-        padding: 11px 15px;
-        margin-bottom: 12px;
-        outline: none;
-      }
-
-      .search-input::placeholder {
-        color: #9d9bb2;
+        border-color: rgba(167, 145, 255, 0.75);
+        box-shadow: 0 0 0 3px rgba(167, 145, 255, 0.2);
       }
 
       button {
         appearance: none;
         border: 1px solid rgba(255, 255, 255, 0.16);
-        background: rgba(255, 255, 255, 0.06);
-        color: #edeaff;
+        background: rgba(255, 255, 255, 0.07);
+        color: #ece9fb;
         border-radius: 10px;
-        padding: 9px 14px;
-        font-size: 0.95rem;
-        font-weight: 520;
+        padding: 10px 14px;
+        font-size: 0.96rem;
+        font-weight: 530;
         cursor: pointer;
         transition: 0.18s ease;
       }
 
       button:hover {
-        background: rgba(255, 255, 255, 0.11);
-        border-color: rgba(255, 255, 255, 0.28);
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.3);
       }
 
       .inline-file-button {
-        width: 46px;
-        height: 46px;
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 38px;
+        height: 38px;
         border-radius: 12px;
-        font-size: 1.5rem;
+        font-size: 1.3rem;
         line-height: 1;
         white-space: nowrap;
         padding: 0;
+        z-index: 2;
       }
 
-      .primary-btn {
-        margin-top: 8px;
-        min-width: 130px;
-      }
-
-      .action-row {
-        display: flex;
-        gap: 10px;
-        margin-top: 2px;
-      }
-
-      .search-panel-hidden {
-        display: none;
-      }
-
-      .search-tabs {
-        display: inline-flex;
-        overflow: hidden;
-        border-radius: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        margin-bottom: 12px;
-      }
-
-      .tab-pill {
-        padding: 7px 12px;
-        font-size: 0.86rem;
-        color: #b8b6ce;
-        background: rgba(255, 255, 255, 0.02);
-      }
-
-      .tab-pill.active {
-        color: #f2efff;
-        background: rgba(255, 255, 255, 0.08);
-      }
-
-      .delete-note-btn {
+      .composer-actions {
         margin-top: 10px;
-        padding: 7px 11px;
-        font-size: 0.86rem;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        max-width: 820px;
+        margin-left: auto;
+        margin-right: auto;
       }
 
       .hidden-file-input {
@@ -210,22 +179,22 @@
       }
 
       .note {
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 16px;
-        background: rgba(255, 255, 255, 0.02);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
-        padding: 16px;
-        margin-top: 12px;
+        border: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.11);
+        background: transparent;
+        box-shadow: none;
+        padding: 14px 4px 16px;
+        margin-top: 0;
       }
 
       .note p {
         margin: 0 0 8px;
         line-height: 1.45;
-        color: #d7d5e8;
+        color: #d8d5e9;
       }
 
       .note strong {
-        color: #f4f2ff;
+        color: #f3f0ff;
       }
 
       .note details {
@@ -234,7 +203,7 @@
 
       .note details > summary {
         cursor: pointer;
-        color: #c7c4dd;
+        color: #cac6e1;
         user-select: none;
       }
 
@@ -243,16 +212,19 @@
       }
 
       .tags {
-        color: #a9b4ff !important;
+        color: #9aa9ff !important;
         font-size: 0.88rem;
       }
 
       .status,
       .upload-status {
-        margin-top: 10px;
+        margin-top: 14px;
         min-height: 20px;
         font-size: 0.92rem;
-        color: #9f9cb8;
+        color: #a9a4c2;
+        max-width: 820px;
+        margin-left: auto;
+        margin-right: auto;
       }
 
       .upload-progress {
@@ -260,8 +232,11 @@
         align-items: center;
         gap: 10px;
         margin-top: 10px;
-        color: #c8c4df;
+        color: #a9a4c2;
         font-size: 0.9rem;
+        max-width: 820px;
+        margin-left: auto;
+        margin-right: auto;
       }
 
       .upload-progress.visible {
@@ -272,8 +247,8 @@
         width: 14px;
         height: 14px;
         border-radius: 50%;
-        border: 2px solid rgba(173, 161, 255, 0.35);
-        border-top-color: rgba(173, 161, 255, 0.95);
+        border: 2px solid rgba(166, 146, 255, 0.36);
+        border-top-color: rgba(166, 146, 255, 0.95);
         animation: spin 0.8s linear infinite;
       }
 
@@ -288,38 +263,103 @@
 
       .status.error,
       .upload-status.error {
-        color: #ff8b98;
+        color: #ff8ea0;
       }
 
       .notes-meta {
-        margin: 12px 0 8px;
-        color: #b3b0c9;
+        margin: 16px 0 8px;
+        color: #a9a4c2;
       }
 
       .note-date {
-        color: #a8a6bc;
+        color: #9b96b3;
         font-size: 0.84rem;
+      }
+
+      .delete-note-btn {
+        margin-top: 8px;
+        padding: 7px 11px;
+        font-size: 0.86rem;
+      }
+
+      .search-sidebar {
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+        padding: 18px;
+        margin-top: 18px;
+        max-width: 880px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .search-sidebar-title {
+        margin: 0 0 14px;
+        font-size: 1.02rem;
+        font-weight: 600;
+        color: #d7d3ed;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .search-input {
+        width: 100%;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.04);
+        color: #ece9fb;
+        padding: 12px 16px;
+        margin-bottom: 14px;
+        outline: none;
+      }
+
+      .search-input::placeholder {
+        color: #9f9ab8;
+      }
+
+      .search-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .search-panel-hidden {
+        display: none;
+      }
+
+      @media (max-width: 1080px) {
+        body {
+          align-items: flex-start;
+          padding: 18px 0;
+        }
+
+        .app-shell {
+          grid-template-columns: 1fr;
+          width: min(980px, 100% - 36px);
+        }
       }
     </style>
   </head>
   <body>
-    <main>
-      <h1>Hivemind</h1>
-      <p class="subtitle">Capture ideas quickly and find them later.</p>
-      <div class="top-actions">
-        <button
-          id="toggleSearchBtn"
-          class="icon-btn"
-          type="button"
-          aria-label="Open search"
-          aria-expanded="false"
-          title="Search"
-        ></button>
-      </div>
+    <div class="app-shell">
+      <main class="main-canvas">
+        <h1>Hivemind</h1>
+        <p class="subtitle">Capture ideas quickly and find them later.</p>
 
-      <section>
-        <div class="glass-card">
-          <div class="note-input-header">
+        <div class="canvas-actions">
+          <button
+            id="toggleSearchBtn"
+            class="icon-btn"
+            type="button"
+            aria-label="Open search"
+            aria-expanded="false"
+            title="Search"
+          ></button>
+        </div>
+
+        <section>
+          <div class="composer">
             <textarea
               id="noteInput"
               class="note-textarea"
@@ -327,36 +367,33 @@
             ></textarea>
             <button id="pickFileBtn" class="inline-file-button" type="button" aria-label="Add file" title="Add file">+</button>
           </div>
-          <button id="saveNoteBtn" class="primary-btn">Save Note</button>
+
+          <div class="composer-actions">
+            <button id="uploadFileBtn" type="button">Save attached file</button>
+          </div>
+
           <p id="uploadStatus" class="upload-status"></p>
           <div id="uploadProgress" class="upload-progress">
             <span class="spinner-dot" aria-hidden="true"></span>
             <span id="uploadProgressText">Processing file...</span>
           </div>
+
           <input id="fileInput" class="hidden-file-input" type="file" accept=".pdf,image/*" />
-          <button id="uploadFileBtn" type="button">Save attached file</button>
-        </div>
-      </section>
+        </section>
 
-      <section id="searchPanel" class="search-panel-hidden">
-        <h2>Search</h2>
-        <div class="glass-card">
-          <div class="search-tabs" aria-hidden="true">
-            <span class="tab-pill active">All Notes</span>
-            <span class="tab-pill">Search Results</span>
-          </div>
+        <p id="statusText" class="status"></p>
+        <section id="searchPanel" class="search-sidebar search-panel-hidden">
+          <h2 class="search-sidebar-title">Find in Hivemind</h2>
           <input id="searchInput" class="search-input" type="text" placeholder="Search..." />
-          <div class="action-row">
-            <button id="searchBtn">Search</button>
-            <button id="loadAllBtn">Load all notes</button>
+          <div class="search-actions">
+            <button id="loadRecentBtn">Load recent notes</button>
           </div>
-        </div>
-      </section>
 
-      <p id="statusText" class="status"></p>
-      <p id="notesMeta" class="notes-meta"></p>
-      <section id="notesList"></section>
-    </main>
+          <p id="notesMeta" class="notes-meta"></p>
+          <section id="notesList"></section>
+        </section>
+      </main>
+    </div>
     <script src="./app.js"></script>
   </body>
 </html>

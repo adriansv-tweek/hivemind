@@ -28,8 +28,9 @@ Then open `frontend/index.html` in your browser.
 ## Quick start on Windows
 
 - Double-click `start_hivemind.bat`
-- This starts backend + opens Hivemind in an app-style browser window (Edge/Chrome)
-- When you close that Hivemind window, backend is stopped automatically
+- This starts backend + opens Hivemind in a new browser window (using your installed browser)
+- If browser keeps a dedicated Hivemind window process, backend stops automatically when you close it
+- If browser reuses an existing process/profile, use `stop_hivemind.bat` to stop backend
 - Fallback manual stop: run `stop_hivemind.bat`
 - To create desktop shortcuts, run:
 

@@ -7,6 +7,8 @@ from hashlib import md5
 
 from openai import OpenAI
 
+TOKEN_PATTERN = r"[0-9A-Za-zÀ-ÖØ-öø-ÿ]+"
+
 COMMON_STOP_WORDS = {
     # English
     "the", "and", "for", "with", "that", "this", "from", "have", "you", "are", "was", "but",
@@ -80,7 +82,7 @@ def _fallback_summary_and_tags(text: str) -> dict[str, object]:
     This keeps local testing easy for students.
     """
     cleaned = " ".join(text.split())
-    words = re.findall(r"[A-Za-z0-9]+", cleaned.lower())
+    words = re.findall(TOKEN_PATTERN, cleaned.lower())
 
     # Build a keyword profile from the full text first.
     keyword_counter: Counter[str] = Counter()
@@ -99,7 +101,7 @@ def _fallback_summary_and_tags(text: str) -> dict[str, object]:
     else:
         scored_sentences: list[tuple[float, int, str]] = []
         for index, sentence in enumerate(sentences):
-            sentence_words = re.findall(r"[A-Za-z0-9]+", sentence.lower())
+            sentence_words = re.findall(TOKEN_PATTERN, sentence.lower())
             if not sentence_words:
                 continue
             score = 0.0
@@ -134,7 +136,7 @@ def _fallback_embedding(text: str, dimensions: int = 256) -> list[float]:
     Build a deterministic local embedding when OpenAI is unavailable.
     It is simple, but good enough for MVP semantic matching.
     """
-    tokens = re.findall(r"[A-Za-z0-9]+", text.lower())
+    tokens = re.findall(TOKEN_PATTERN, text.lower())
     if not tokens:
         return [0.0] * dimensions
 

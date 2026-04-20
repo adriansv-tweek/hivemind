@@ -89,12 +89,21 @@ SEARCH_SYNONYM_GROUPS = [
     {"kangaroo", "kangaroos", "kenguru", "kenguruer"},
     {"ant", "ants", "maur", "mauren", "maurer"},
 ]
+TOKEN_PATTERN = r"[0-9A-Za-zÀ-ÖØ-öø-ÿ]+"
 
 
 def _fold_search_text(text: str) -> str:
     """
-    Normalize text so simple cross-language and no-diacritic queries match better.
-    Example: bjørn -> bjorn, også -> ogsa.
+    Keep natural language text intact (including Norwegian letters)
+    while still normalizing case/spacing for matching.
+    """
+    return " ".join(unicodedata.normalize("NFC", text).lower().split())
+
+
+def _ascii_fold_search_text(text: str) -> str:
+    """
+    Build an additional ascii-friendly variant for users who type
+    without diacritics, e.g. bjorn -> bjørn, fro -> frø.
     """
     replacements = str.maketrans(
         {
@@ -108,7 +117,7 @@ def _fold_search_text(text: str) -> str:
     )
     replaced = text.translate(replacements)
     normalized = unicodedata.normalize("NFKD", replaced)
-    return "".join(char for char in normalized if not unicodedata.combining(char)).lower()
+    return " ".join("".join(char for char in normalized if not unicodedata.combining(char)).lower().split())
 
 
 def _normalize_search_token(token: str) -> str:
@@ -122,16 +131,24 @@ def _normalize_search_token(token: str) -> str:
     return cleaned
 
 
+def _normalized_token_forms(token: str) -> set[str]:
+    base_form = _normalize_search_token(token)
+    ascii_form = _normalize_search_token(_ascii_fold_search_text(token))
+    forms = {form for form in [base_form, ascii_form] if form}
+    return forms
+
+
 def _expand_local_search_term(term: str) -> list[str]:
-    normalized = _normalize_search_token(term)
-    if not normalized:
+    term_forms = _normalized_token_forms(term)
+    if not term_forms:
         return []
 
     for group in SEARCH_SYNONYM_GROUPS:
-        folded_group = {_normalize_search_token(item) for item in group}
-        if normalized in folded_group:
+        folded_group = {form for item in group for form in _normalized_token_forms(item)}
+        if term_forms.intersection(folded_group):
             return sorted(folded_group)
-    return [normalized]
+
+    return sorted(term_forms)
 
 
 def _query_variants(text: str) -> list[str]:
@@ -144,6 +161,10 @@ def _query_variants(text: str) -> list[str]:
         return []
 
     variants = {base, _normalize_search_token(base)}
+    ascii_base = _ascii_fold_search_text(base)
+    if ascii_base:
+        variants.add(ascii_base)
+        variants.add(_normalize_search_token(ascii_base))
     normalized = _normalize_search_token(base)
     if (
         normalized
@@ -163,7 +184,9 @@ def _extract_search_terms(query_text: str) -> list[str]:
     Example: "what is a cat?" -> ["cat", "cats"].
     """
     folded_query = _fold_search_text(query_text)
-    words = re.findall(r"[a-zA-Z0-9]+", folded_query)
+    ascii_query = _ascii_fold_search_text(query_text)
+    words = re.findall(TOKEN_PATTERN, folded_query)
+    words.extend(re.findall(TOKEN_PATTERN, ascii_query))
     candidates = []
     for word in words:
         if word in SEARCH_STOP_WORDS:
@@ -215,15 +238,14 @@ def _build_note_embedding_text(content: str, summary: str | None, tags: list[str
 def _keyword_match_score(note: Note, search_terms: list[str]) -> float:
     if not search_terms:
         return 0.0
-    searchable_text = _fold_search_text(
-        " ".join(
+    source_text = " ".join(
         [
             note.content or "",
             note.summary or "",
             " ".join(tag.name for tag in note.tags),
         ]
-        )
     )
+    searchable_text = f"{_fold_search_text(source_text)} {_ascii_fold_search_text(source_text)}"
     matches = sum(1 for term in search_terms if term in searchable_text)
     return matches / max(1, len(search_terms))
 
@@ -400,14 +422,19 @@ def delete_note(note_id: int, db: Session = Depends(get_db)) -> DeleteResponse:
 
 
 @router.get("/notes", response_model=list[NoteCreateResponse])
-def list_notes(db: Session = Depends(get_db)) -> list[NoteCreateResponse]:
+def list_notes(
+    limit: int | None = Query(default=None, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> list[NoteCreateResponse]:
     # Return newest notes first to improve usability in /docs and frontend.
-    notes = (
+    notes_query = (
         db.query(Note)
         .options(joinedload(Note.tags), joinedload(Note.embedding))
         .order_by(Note.created_at.desc())
-        .all()
     )
+    if limit:
+        notes_query = notes_query.limit(limit)
+    notes = notes_query.all()
     return [_to_note_response(note) for note in notes]
 
 
