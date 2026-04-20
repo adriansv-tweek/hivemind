@@ -3,7 +3,17 @@ import io
 import os
 from pathlib import Path
 
+import numpy as np
 from openai import OpenAI
+from PIL import Image
+
+try:
+    from rapidocr_onnxruntime import RapidOCR
+except ImportError:  # pragma: no cover - optional local OCR fallback.
+    RapidOCR = None
+
+_local_ocr_engine = None
+_openai_vision_disabled = False
 
 
 def _extract_text_from_pdf(file_bytes: bytes) -> str:
@@ -20,39 +30,76 @@ def _extract_text_from_pdf(file_bytes: bytes) -> str:
 
 
 def _extract_text_from_image(file_bytes: bytes, mime_type: str) -> str:
+    global _openai_vision_disabled
+
     api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("Image text extraction requires OPENAI_API_KEY.")
+    if api_key and not _openai_vision_disabled:
+        client = OpenAI(api_key=api_key)
+        try:
+            model = os.getenv("OPENAI_VISION_MODEL", "gpt-4.1-mini")
+            image_base64 = base64.b64encode(file_bytes).decode("utf-8")
+            data_url = f"data:{mime_type};base64,{image_base64}"
 
-    client = OpenAI(api_key=api_key)
-    model = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini")
-    image_base64 = base64.b64encode(file_bytes).decode("utf-8")
-    data_url = f"data:{mime_type};base64,{image_base64}"
-
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "user",
-                "content": [
+            response = client.responses.create(
+                model=model,
+                input=[
                     {
-                        "type": "text",
-                        "text": (
-                            "Extract all readable text from this image. "
-                            "Return plain text only. Do not summarize. "
-                            "If no readable text exists, return an empty string."
-                        ),
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": data_url},
-                    },
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": (
+                                    "Extract all readable text from this image. "
+                                    "Return plain text only. Do not summarize. "
+                                    "If no readable text exists, return an empty string."
+                                ),
+                            },
+                            {
+                                "type": "input_image",
+                                "image_url": data_url,
+                            },
+                        ],
+                    }
                 ],
-            }
-        ],
-        temperature=0,
-    )
-    return (response.choices[0].message.content or "").strip()
+                timeout=8.0,
+            )
+            output_text = getattr(response, "output_text", "")
+            if output_text and output_text.strip():
+                return output_text.strip()
+        except Exception as error:
+            # Image OCR should still work locally if OpenAI vision is unavailable.
+            # If quota is gone, avoid waiting on OpenAI for every next screenshot.
+            error_text = str(error).lower()
+            if (
+                "insufficient_quota" in error_text
+                or "rate limit" in error_text
+                or "timed out" in error_text
+                or "timeout" in error_text
+            ):
+                _openai_vision_disabled = True
+
+    return _extract_text_from_image_locally(file_bytes)
+
+
+def _extract_text_from_image_locally(file_bytes: bytes) -> str:
+    if RapidOCR is None:
+        raise ValueError("Local image OCR is not installed. Run pip install -r requirements.txt.")
+
+    global _local_ocr_engine
+    if _local_ocr_engine is None:
+        _local_ocr_engine = RapidOCR()
+
+    image = Image.open(io.BytesIO(file_bytes)).convert("RGB")
+    image_array = np.array(image)
+    result, _ = _local_ocr_engine(image_array)
+    if not result:
+        raise ValueError("No readable text found in image.")
+
+    lines = [str(item[1]).strip() for item in result if len(item) > 1 and str(item[1]).strip()]
+    extracted_text = "\n".join(lines).strip()
+    if not extracted_text:
+        raise ValueError("No readable text found in image.")
+    return extracted_text
 
 
 def extract_text_from_file(filename: str, file_bytes: bytes, content_type: str | None) -> str:

@@ -25,6 +25,18 @@ uvicorn backend.main:app --reload
 
 Then open `frontend/index.html` in your browser.
 
+## Quick start on Windows
+
+- Double-click `start_hivemind.bat`
+- This starts backend + opens Hivemind in an app-style browser window (Edge/Chrome)
+- When you close that Hivemind window, backend is stopped automatically
+- Fallback manual stop: run `stop_hivemind.bat`
+- To create desktop shortcuts, run:
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\create_desktop_shortcuts.ps1
+```
+
 Optional (for real AI output instead of fallback):
 
 PowerShell:
@@ -64,5 +76,5 @@ This recomputes summary, tags, and embeddings for all saved notes.
 ## File ingest
 
 - PDF files are read as text and saved as notes.
-- Screenshot/image ingest uses OpenAI to extract text from the image first.
+- Screenshot/image ingest tries OpenAI vision first and falls back to local OCR if needed.
 - In frontend, use `+ Add file` for PDFs/images, or paste a screenshot directly into the main text box with `Ctrl+V`.
