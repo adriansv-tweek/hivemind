@@ -1,8 +1,24 @@
 import json
 import os
 import re
+from collections import Counter
 
 from openai import OpenAI
+
+
+def _normalize_word(word: str) -> str:
+    """
+    Light normalization so simple plural forms map together.
+    Example: cats -> cat, dogs -> dog.
+    """
+    lowered = word.lower().strip()
+    if len(lowered) > 4 and lowered.endswith("ies"):
+        return f"{lowered[:-3]}y"
+    if len(lowered) > 3 and lowered.endswith("es"):
+        return lowered[:-2]
+    if len(lowered) > 3 and lowered.endswith("s"):
+        return lowered[:-1]
+    return lowered
 
 
 def _fallback_summary_and_tags(text: str) -> dict[str, object]:
@@ -18,7 +34,8 @@ def _fallback_summary_and_tags(text: str) -> dict[str, object]:
     if len(cleaned) > 180:
         summary += "..."
 
-    # Pick up to 5 useful-looking words as lightweight tags.
+    # Pick up to 5 meaningful keywords based on frequency.
+    # This is much better than using the first words in the text.
     skip_words = {
         "the",
         "and",
@@ -35,17 +52,36 @@ def _fallback_summary_and_tags(text: str) -> dict[str, object]:
         "not",
         "your",
         "about",
+        "also",
+        "called",
+        "into",
+        "their",
+        "they",
+        "them",
+        "than",
+        "such",
+        "many",
+        "very",
+        "more",
+        "most",
+        "can",
+        "has",
+        "had",
+        "its",
+        "it's",
+        "between",
+        "while",
+        "including",
     }
-    unique_words = []
+    keyword_counter: Counter[str] = Counter()
     for word in words:
-        if len(word) < 4 or word in skip_words:
+        normalized = _normalize_word(word)
+        if len(normalized) < 4 or normalized in skip_words:
             continue
-        if word not in unique_words:
-            unique_words.append(word)
-        if len(unique_words) == 5:
-            break
+        keyword_counter[normalized] += 1
 
-    return {"summary": summary or "No summary available.", "tags": unique_words}
+    top_tags = [tag for tag, _count in keyword_counter.most_common(5)]
+    return {"summary": summary or "No summary available.", "tags": top_tags}
 
 
 def extract_summary_and_tags(text: str) -> dict[str, object]:
@@ -63,7 +99,8 @@ def extract_summary_and_tags(text: str) -> dict[str, object]:
 
         prompt = (
             "Summarize this text in 1-2 sentences. "
-            "Also provide 3-5 relevant tags.\n"
+            "Also provide 3-5 relevant tags that are useful for later search. "
+            "Use broad concepts or topics, not random first words.\n"
             'Return ONLY valid JSON in this exact shape: {"summary": "...", "tags": ["...", "..."]}.\n\n'
             f"Text:\n{text}"
         )

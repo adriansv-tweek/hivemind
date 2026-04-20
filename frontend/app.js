@@ -30,10 +30,15 @@ function renderNotes(notes) {
   for (const note of notes) {
     const noteCard = document.createElement("article");
     noteCard.className = "note";
+    const preview = note.content.length > 220 ? `${note.content.slice(0, 220)}...` : note.content;
     noteCard.innerHTML = `
-      <p><strong>Content:</strong> ${note.content}</p>
       <p><strong>Summary:</strong> ${note.summary || "No summary yet"}</p>
+      <p><strong>Preview:</strong> ${preview}</p>
       <p class="tags"><strong>Tags:</strong> ${formatTags(note.tags)}</p>
+      <details>
+        <summary>Read full note</summary>
+        <p>${note.content}</p>
+      </details>
       <p><small>${new Date(note.created_at).toLocaleString()}</small></p>
     `;
     notesList.appendChild(noteCard);
@@ -49,7 +54,7 @@ async function loadAllNotes() {
     }
     const notes = await response.json();
     renderNotes(notes);
-    setStatus(`Loaded ${notes.length} notes.`);
+    setStatus(`Loaded ${notes.length} notes. Showing compact previews.`);
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -97,7 +102,7 @@ async function searchNotes() {
     }
     const notes = await response.json();
     renderNotes(notes);
-    setStatus(`Found ${notes.length} notes.`);
+    setStatus(`Found ${notes.length} notes. Open a result to read full text.`);
   } catch (error) {
     setStatus(error.message, true);
   }

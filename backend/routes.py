@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -25,6 +26,80 @@ class NoteResponse(BaseModel):
 
 class NoteCreateResponse(NoteResponse):
     tags: list[str]
+
+
+SEARCH_STOP_WORDS = {
+    "a",
+    "an",
+    "the",
+    "what",
+    "is",
+    "are",
+    "was",
+    "were",
+    "tell",
+    "me",
+    "about",
+    "of",
+    "in",
+    "on",
+    "to",
+    "for",
+    "and",
+    "or",
+}
+
+
+def _normalize_search_token(token: str) -> str:
+    cleaned = token.strip().lower()
+    if len(cleaned) > 4 and cleaned.endswith("ies"):
+        return f"{cleaned[:-3]}y"
+    if len(cleaned) > 3 and cleaned.endswith("es"):
+        return cleaned[:-2]
+    if len(cleaned) > 3 and cleaned.endswith("s"):
+        return cleaned[:-1]
+    return cleaned
+
+
+def _query_variants(text: str) -> list[str]:
+    """
+    Build a small set of search variants so cat/cats and dog/dogs
+    match each other more often without full-text search setup.
+    """
+    base = text.strip().lower()
+    if not base:
+        return []
+
+    variants = {base, _normalize_search_token(base)}
+    normalized = _normalize_search_token(base)
+    if normalized:
+        variants.add(f"{normalized}s")
+        variants.add(f"{normalized}es")
+    return [item for item in variants if item]
+
+
+def _extract_search_terms(query_text: str) -> list[str]:
+    """
+    Extract meaningful terms from normal language questions.
+    Example: "what is a cat?" -> ["cat", "cats"].
+    """
+    words = re.findall(r"[a-zA-Z0-9]+", query_text.lower())
+    candidates = []
+    for word in words:
+        if word in SEARCH_STOP_WORDS:
+            continue
+        if len(word) < 2:
+            continue
+        candidates.extend(_query_variants(word))
+
+    # Keep order stable while removing duplicates.
+    unique_terms = list(dict.fromkeys(candidates))
+
+    # Fallback: if query had only stop words, use full cleaned query.
+    if unique_terms:
+        return unique_terms[:10]
+    cleaned_full_query = query_text.strip().lower()
+    return _query_variants(cleaned_full_query)
 
 
 def _normalize_tags(raw_tags: list[object]) -> list[str]:
@@ -113,18 +188,25 @@ def search_notes(q: str = Query(min_length=1), db: Session = Depends(get_db)) ->
     if not query_text:
         return []
 
-    search_term = f"%{query_text}%"
+    terms = [f"%{term}%" for term in _extract_search_terms(query_text)]
+    if not terms:
+        return []
+
+    filters = []
+    for term in terms:
+        filters.extend(
+            [
+                Note.content.ilike(term),
+                Note.summary.ilike(term),
+                Tag.name.ilike(term),
+            ]
+        )
+
     results = (
         db.query(Note)
         .options(joinedload(Note.tags))
         .outerjoin(Note.tags)
-        .filter(
-            or_(
-                Note.content.ilike(search_term),
-                Note.summary.ilike(search_term),
-                Tag.name.ilike(search_term),
-            )
-        )
+        .filter(or_(*filters))
         .distinct()
         .order_by(Note.created_at.desc())
         .all()
