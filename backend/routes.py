@@ -2,13 +2,14 @@ from datetime import datetime
 import json
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 
 from .database import SessionLocal
 from .models import Note, NoteEmbedding, Tag
 from .services.ai_service import clean_tag_candidates, cosine_similarity, create_embedding, extract_summary_and_tags
+from .services.ingest_service import extract_text_from_file
 
 router = APIRouter()
 
@@ -31,6 +32,17 @@ class NoteCreateResponse(NoteResponse):
 class ReindexResponse(BaseModel):
     total_notes: int
     updated_notes: int
+
+
+class DeleteResponse(BaseModel):
+    deleted_id: int
+    message: str
+
+
+class IngestResponse(BaseModel):
+    filename: str
+    extracted_characters: int
+    note: NoteCreateResponse
 
 
 SEARCH_STOP_WORDS = {
@@ -241,6 +253,47 @@ def create_note(payload: NoteCreate, db: Session = Depends(get_db)) -> NoteCreat
     return _to_note_response(saved_note)
 
 
+@router.post("/ingest/file", response_model=IngestResponse)
+async def ingest_file(file: UploadFile = File(...), db: Session = Depends(get_db)) -> IngestResponse:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="file must have a name")
+
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="file is empty")
+
+    try:
+        extracted_text = extract_text_from_file(file.filename, file_bytes, file.content_type)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(status_code=500, detail="failed to process uploaded file") from error
+
+    cleaned_content = extracted_text.strip()
+    if not cleaned_content:
+        raise HTTPException(status_code=400, detail="no readable text found in file")
+
+    note = Note(content=cleaned_content)
+    _refresh_note_ai_data(note, db)
+
+    db.add(note)
+    db.commit()
+    saved_note = (
+        db.query(Note)
+        .options(joinedload(Note.tags), joinedload(Note.embedding))
+        .filter(Note.id == note.id)
+        .first()
+    )
+    if not saved_note:
+        raise HTTPException(status_code=500, detail="failed to load saved note")
+
+    return IngestResponse(
+        filename=file.filename,
+        extracted_characters=len(cleaned_content),
+        note=_to_note_response(saved_note),
+    )
+
+
 @router.post("/admin/reindex", response_model=ReindexResponse)
 def reindex_notes(db: Session = Depends(get_db)) -> ReindexResponse:
     """
@@ -255,6 +308,22 @@ def reindex_notes(db: Session = Depends(get_db)) -> ReindexResponse:
 
     db.commit()
     return ReindexResponse(total_notes=len(notes), updated_notes=updated_count)
+
+
+@router.delete("/note/{note_id}", response_model=DeleteResponse)
+def delete_note(note_id: int, db: Session = Depends(get_db)) -> DeleteResponse:
+    note = (
+        db.query(Note)
+        .options(joinedload(Note.tags), joinedload(Note.embedding))
+        .filter(Note.id == note_id)
+        .first()
+    )
+    if not note:
+        raise HTTPException(status_code=404, detail="note not found")
+
+    db.delete(note)
+    db.commit()
+    return DeleteResponse(deleted_id=note_id, message="note deleted")
 
 
 @router.get("/notes", response_model=list[NoteCreateResponse])

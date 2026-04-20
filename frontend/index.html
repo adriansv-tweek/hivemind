@@ -14,6 +14,15 @@
         width: 100%;
         min-height: 120px;
       }
+      .note-input-header {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .note-textarea {
+        width: 100%;
+      }
       input {
         width: 100%;
         margin-bottom: 8px;
@@ -21,6 +30,13 @@
       button {
         margin-top: 8px;
         margin-right: 8px;
+      }
+      .inline-file-button {
+        margin-top: 0;
+        white-space: nowrap;
+      }
+      .delete-note-btn {
+        margin-top: 12px;
       }
       .note {
         border: 1px solid #ddd;
@@ -48,9 +64,18 @@
 
       <section>
         <h2>Add Note</h2>
-        <textarea id="noteInput" placeholder="Paste text, ideas, or article snippets here..."></textarea>
-        <br />
+        <div class="note-input-header">
+          <textarea
+            id="noteInput"
+            class="note-textarea"
+            placeholder="Paste text here, or paste a screenshot with Ctrl+V..."
+          ></textarea>
+          <button id="pickFileBtn" class="inline-file-button" type="button">+ Add file</button>
+        </div>
         <button id="saveNoteBtn">Save note</button>
+        <p id="uploadStatus"></p>
+        <input id="fileInput" type="file" accept=".pdf,image/*" hidden />
+        <button id="uploadFileBtn" type="button">Save attached file</button>
       </section>
 
       <section>
