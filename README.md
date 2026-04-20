@@ -53,3 +53,8 @@ This recomputes summary, tags, and embeddings for all saved notes.
 2. Save one new note in frontend or `POST /note`
 3. Run `POST /admin/reindex` once if you want old notes refreshed too
 4. Confirm summaries/tags now look more semantic than fallback output
+
+## Stability notes
+
+- Backend now reads database path from project root (`hivemind.db`) to avoid accidental duplicate DB files.
+- Frontend requests use a timeout and will show a clear error if backend is down.

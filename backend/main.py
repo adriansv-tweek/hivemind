@@ -1,13 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - defensive fallback only.
+    load_dotenv = None
 
 from .database import Base, engine
 from . import models
 from .routes import router
 
 # Load local .env values (like OPENAI_API_KEY) on startup.
-load_dotenv()
+# Keep app boot resilient even if python-dotenv is missing.
+if load_dotenv:
+    load_dotenv()
 
 app = FastAPI(title="Hivemind API")
 
