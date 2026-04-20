@@ -1,6 +1,7 @@
 from datetime import datetime
 import json
 import re
+import unicodedata
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
@@ -8,7 +9,13 @@ from sqlalchemy.orm import Session, joinedload
 
 from .database import SessionLocal
 from .models import Note, NoteEmbedding, Tag
-from .services.ai_service import clean_tag_candidates, cosine_similarity, create_embedding, extract_summary_and_tags
+from .services.ai_service import (
+    clean_tag_candidates,
+    cosine_similarity,
+    create_embedding,
+    expand_search_terms,
+    extract_summary_and_tags,
+)
 from .services.ingest_service import extract_text_from_file
 
 router = APIRouter()
@@ -64,18 +71,67 @@ SEARCH_STOP_WORDS = {
     "for",
     "and",
     "or",
+    "hva",
+    "er",
+    "en",
+    "et",
+    "om",
+    "fortell",
+    "meg",
 }
+
+SEARCH_SYNONYM_GROUPS = [
+    {"cat", "cats", "katt", "katter", "feline", "felis", "catus"},
+    {"dog", "dogs", "hund", "hunder", "canis", "lupus", "familiaris"},
+    {"panda", "pandabjorn", "pandabjørn", "kjempepanda", "ailuropoda", "melanoleuca"},
+    {"bear", "bears", "bjorn", "bjørn", "bjørner"},
+    {"china", "chinese", "kina", "kinesisk"},
+    {"kangaroo", "kangaroos", "kenguru", "kenguruer"},
+    {"ant", "ants", "maur", "mauren", "maurer"},
+]
+
+
+def _fold_search_text(text: str) -> str:
+    """
+    Normalize text so simple cross-language and no-diacritic queries match better.
+    Example: bjørn -> bjorn, også -> ogsa.
+    """
+    replacements = str.maketrans(
+        {
+            "æ": "ae",
+            "ø": "o",
+            "å": "a",
+            "Æ": "ae",
+            "Ø": "o",
+            "Å": "a",
+        }
+    )
+    replaced = text.translate(replacements)
+    normalized = unicodedata.normalize("NFKD", replaced)
+    return "".join(char for char in normalized if not unicodedata.combining(char)).lower()
 
 
 def _normalize_search_token(token: str) -> str:
-    cleaned = token.strip().lower()
+    cleaned = _fold_search_text(token).strip()
     if len(cleaned) > 4 and cleaned.endswith("ies"):
         return f"{cleaned[:-3]}y"
-    if len(cleaned) > 3 and cleaned.endswith("es"):
+    if len(cleaned) > 3 and cleaned.endswith("es") and not cleaned.endswith(("ese", "ses")):
         return cleaned[:-2]
-    if len(cleaned) > 3 and cleaned.endswith("s"):
+    if len(cleaned) > 3 and cleaned.endswith("s") and not cleaned.endswith(("is", "us", "ss")):
         return cleaned[:-1]
     return cleaned
+
+
+def _expand_local_search_term(term: str) -> list[str]:
+    normalized = _normalize_search_token(term)
+    if not normalized:
+        return []
+
+    for group in SEARCH_SYNONYM_GROUPS:
+        folded_group = {_normalize_search_token(item) for item in group}
+        if normalized in folded_group:
+            return sorted(folded_group)
+    return [normalized]
 
 
 def _query_variants(text: str) -> list[str]:
@@ -83,15 +139,21 @@ def _query_variants(text: str) -> list[str]:
     Build a small set of search variants so cat/cats and dog/dogs
     match each other more often without full-text search setup.
     """
-    base = text.strip().lower()
+    base = _fold_search_text(text).strip()
     if not base:
         return []
 
     variants = {base, _normalize_search_token(base)}
     normalized = _normalize_search_token(base)
-    if normalized:
+    if (
+        normalized
+        and " " not in normalized
+        and normalized.isalpha()
+        and not normalized.endswith("s")
+        and not normalized.endswith("ese")
+        and len(normalized) <= 10
+    ):
         variants.add(f"{normalized}s")
-        variants.add(f"{normalized}es")
     return [item for item in variants if item]
 
 
@@ -100,7 +162,8 @@ def _extract_search_terms(query_text: str) -> list[str]:
     Extract meaningful terms from normal language questions.
     Example: "what is a cat?" -> ["cat", "cats"].
     """
-    words = re.findall(r"[a-zA-Z0-9]+", query_text.lower())
+    folded_query = _fold_search_text(query_text)
+    words = re.findall(r"[a-zA-Z0-9]+", folded_query)
     candidates = []
     for word in words:
         if word in SEARCH_STOP_WORDS:
@@ -108,14 +171,22 @@ def _extract_search_terms(query_text: str) -> list[str]:
         if len(word) < 2:
             continue
         candidates.extend(_query_variants(word))
+        candidates.extend(_expand_local_search_term(word))
 
-    # Keep order stable while removing duplicates.
+    ai_terms = expand_search_terms(query_text)
+    for ai_term in ai_terms:
+        if len(ai_term) < 2:
+            continue
+        candidates.extend(_query_variants(ai_term))
+        candidates.extend(_expand_local_search_term(ai_term))
+
+    # Keep order stable while removing duplicates after AI expansion too.
     unique_terms = list(dict.fromkeys(candidates))
 
     # Fallback: if query had only stop words, use full cleaned query.
     if unique_terms:
-        return unique_terms[:10]
-    cleaned_full_query = query_text.strip().lower()
+        return unique_terms[:14]
+    cleaned_full_query = _fold_search_text(query_text).strip()
     return _query_variants(cleaned_full_query)
 
 
@@ -144,13 +215,15 @@ def _build_note_embedding_text(content: str, summary: str | None, tags: list[str
 def _keyword_match_score(note: Note, search_terms: list[str]) -> float:
     if not search_terms:
         return 0.0
-    searchable_text = " ".join(
+    searchable_text = _fold_search_text(
+        " ".join(
         [
             note.content or "",
             note.summary or "",
             " ".join(tag.name for tag in note.tags),
         ]
-    ).lower()
+        )
+    )
     matches = sum(1 for term in search_terms if term in searchable_text)
     return matches / max(1, len(search_terms))
 
@@ -267,7 +340,7 @@ async def ingest_file(file: UploadFile = File(...), db: Session = Depends(get_db
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     except Exception as error:
-        raise HTTPException(status_code=500, detail="failed to process uploaded file") from error
+        raise HTTPException(status_code=500, detail=f"failed to process uploaded file: {error}") from error
 
     cleaned_content = extracted_text.strip()
     if not cleaned_content:
@@ -372,7 +445,9 @@ def search_notes(q: str = Query(min_length=1), db: Session = Depends(get_db)) ->
     # If we have direct keyword hits, prefer those and hide broad semantic noise.
     direct_matches = [item for item in ranked_results if item[1] > 0]
     if direct_matches:
-        ranked_results = direct_matches
+        best_keyword_score = max(item[1] for item in direct_matches)
+        minimum_keyword_score = max(0.16, best_keyword_score * 0.7)
+        ranked_results = [item for item in direct_matches if item[1] >= minimum_keyword_score]
     elif ranked_results:
         # For purely semantic search, keep only results reasonably close to the best hit.
         best_score = ranked_results[0][0]
