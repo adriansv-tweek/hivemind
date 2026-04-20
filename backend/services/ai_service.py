@@ -244,3 +244,58 @@ def extract_summary_and_tags(text: str) -> dict[str, object]:
     except Exception:
         # If API fails for any reason, keep app usable with fallback output.
         return _fallback_summary_and_tags(text)
+
+
+def expand_search_terms(query: str) -> list[str]:
+    """
+    Expand a user query into a small set of precise search terms.
+    This helps multilingual and indirect searches like
+    'chinese bear' -> 'panda', 'pandabjorn', 'china'.
+    """
+    cleaned_query = " ".join(query.split()).strip()
+    if not cleaned_query:
+        return []
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return []
+
+    try:
+        client = OpenAI(api_key=api_key)
+        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        prompt = (
+            "You are helping a note search system expand a search query into a few precise recall terms.\n"
+            "Return ONLY valid JSON in this exact shape: {\"terms\": [\"...\", \"...\"]}\n"
+            "Rules:\n"
+            "- Return 3 to 6 short terms max.\n"
+            "- Include likely synonyms, translations, named entities, or scientific names if clearly relevant.\n"
+            "- Do not answer the question.\n"
+            "- Do not include broad generic words unless they are central.\n"
+            f"Query: {cleaned_query}"
+        )
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+        )
+        raw = response.choices[0].message.content or ""
+        match = re.search(r"\{[\s\S]*\}", raw)
+        json_blob = match.group(0) if match else raw
+        parsed = json.loads(json_blob)
+        raw_terms = parsed.get("terms", [])
+        if not isinstance(raw_terms, list):
+            return []
+
+        cleaned_terms: list[str] = []
+        seen = set()
+        for term in raw_terms:
+            value = " ".join(str(term).split()).strip().lower()
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            cleaned_terms.append(value)
+            if len(cleaned_terms) == 6:
+                break
+        return cleaned_terms
+    except Exception:
+        return []

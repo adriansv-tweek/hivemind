@@ -6,3 +6,5 @@ openai
 python-dotenv
 python-multipart
 pypdf
+rapidocr-onnxruntime
+pillow
